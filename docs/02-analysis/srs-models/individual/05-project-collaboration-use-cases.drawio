@@ -1,0 +1,221 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" type="device" compressed="false" pages="1">
+  <diagram id="figure-05" name="05 project-collaboration-use-cases">
+    <mxGraphModel dx="1000" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="680.7" pageHeight="461.333" math="0" shadow="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="f05-s001" value="" parent="1" sourceName="Rect 1154" sourceWordId="654543125" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#999999;strokeWidth=0.66667;shape=rect;">
+          <mxGeometry x="138.667" y="32" width="412" height="397.333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s002" value="&lt;div style=&quot;line-height:19.4px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:14px;font-weight:bold;color:#000000;&quot;&gt;Project collaboration and&lt;/span&gt;&lt;span style=&quot;font-size:14px;font-weight:bold;color:#000000;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;span style=&quot;font-size:14px;font-weight:bold;color:#000000;&quot;&gt;sharing&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text Project collaboration and sharing" sourceWordId="1606612630" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=14;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="234.707" y="32.6267" width="203.986" height="38.8" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s003" value="" parent="1" sourceName="Line 1156" sourceWordId="555068188" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="81.3333" y="226.667" as="sourcePoint" />
+            <mxPoint x="120" y="226.667" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s004" value="" parent="1" sourceName="Line 1157" sourceWordId="1962837402" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="151.111" as="sourcePoint" />
+            <mxPoint x="120" y="393.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s005" value="" parent="1" sourceName="Line 1158" sourceWordId="591938920" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="151.111" as="sourcePoint" />
+            <mxPoint x="168" y="151.111" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s006" value="" parent="1" sourceName="Line 1159" sourceWordId="728921432" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="199.556" as="sourcePoint" />
+            <mxPoint x="168" y="199.556" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s007" value="" parent="1" sourceName="Line 1160" sourceWordId="55438086" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="248" as="sourcePoint" />
+            <mxPoint x="168" y="248" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s008" value="" parent="1" sourceName="Line 1161" sourceWordId="879222381" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="296.444" as="sourcePoint" />
+            <mxPoint x="168" y="296.445" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s009" value="" parent="1" sourceName="Line 1162" sourceWordId="1503301954" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="344.889" as="sourcePoint" />
+            <mxPoint x="168" y="344.889" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s010" value="" parent="1" sourceName="Line 1163" sourceWordId="1531663308" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="120" y="393.333" as="sourcePoint" />
+            <mxPoint x="168" y="393.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s011" value="" parent="1" sourceName="Circle 1164" sourceWordId="1939654888" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#333333;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="57.3333" y="196" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s012" value="" parent="1" sourceName="Line 1165" sourceWordId="988589625" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="65.3333" y="212" as="sourcePoint" />
+            <mxPoint x="65.3334" y="245.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s013" value="" parent="1" sourceName="Line 1166" sourceWordId="1195123893" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="49.3333" y="226.667" as="sourcePoint" />
+            <mxPoint x="81.3333" y="226.667" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s014" value="" parent="1" sourceName="Line 1167" sourceWordId="822634413" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="65.3333" y="245.333" as="sourcePoint" />
+            <mxPoint x="50.6667" y="265.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s015" value="" parent="1" sourceName="Line 1168" sourceWordId="100548928" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="65.3333" y="245.333" as="sourcePoint" />
+            <mxPoint x="80" y="265.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s016" value="&lt;div style=&quot;line-height:17.5333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;Project&lt;/span&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;member&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text Project member" sourceWordId="681929586" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="32" y="267.827" width="65.3333" height="35.0667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s017" value="" parent="1" sourceName="Line 1170" sourceWordId="512052786" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="608" y="226.667" as="sourcePoint" />
+            <mxPoint x="569.333" y="226.667" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s018" value="" parent="1" sourceName="Line 1171" sourceWordId="800041112" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="569.333" y="102.667" as="sourcePoint" />
+            <mxPoint x="569.333" y="393.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s019" value="" parent="1" sourceName="Line 1172" sourceWordId="130612450" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="102.667" as="sourcePoint" />
+            <mxPoint x="569.333" y="102.667" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s020" value="" parent="1" sourceName="Line 1173" sourceWordId="293812724" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="151.111" as="sourcePoint" />
+            <mxPoint x="569.333" y="151.111" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s021" value="" parent="1" sourceName="Line 1174" sourceWordId="70817261" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="199.556" as="sourcePoint" />
+            <mxPoint x="569.333" y="199.556" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s022" value="" parent="1" sourceName="Line 1175" sourceWordId="1099292596" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="248" as="sourcePoint" />
+            <mxPoint x="569.333" y="248" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s023" value="" parent="1" sourceName="Line 1176" sourceWordId="811284800" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="296.444" as="sourcePoint" />
+            <mxPoint x="569.333" y="296.445" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s024" value="" parent="1" sourceName="Line 1177" sourceWordId="1733804010" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="344.889" as="sourcePoint" />
+            <mxPoint x="569.333" y="344.889" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s025" value="" parent="1" sourceName="Line 1178" sourceWordId="1294484735" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#444444;strokeWidth=0.93333;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="521.333" y="393.333" as="sourcePoint" />
+            <mxPoint x="569.333" y="393.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s026" value="" parent="1" sourceName="Circle 1179" sourceWordId="249411758" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#333333;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="616" y="196" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s027" value="" parent="1" sourceName="Line 1180" sourceWordId="760361023" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="624" y="212" as="sourcePoint" />
+            <mxPoint x="624" y="245.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s028" value="" parent="1" sourceName="Line 1181" sourceWordId="1468791685" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="608" y="226.667" as="sourcePoint" />
+            <mxPoint x="640" y="226.667" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s029" value="" parent="1" sourceName="Line 1182" sourceWordId="1032435055" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="624" y="245.333" as="sourcePoint" />
+            <mxPoint x="609.333" y="265.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s030" value="" parent="1" sourceName="Line 1183" sourceWordId="1101048837" edge="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=#333333;strokeWidth=0.8;endArrow=none;startArrow=none;noEdgeStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="624" y="245.333" as="sourcePoint" />
+            <mxPoint x="638.667" y="265.333" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="f05-s031" value="&lt;div style=&quot;line-height:17.5333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;Project&lt;/span&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;owner&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text Project owner" sourceWordId="1905769386" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="583.367" y="267.827" width="65.3333" height="35.0667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s032" value="" parent="1" sourceName="Ellipse 1185" sourceWordId="1701863816" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="82.9333" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s033" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC14 Invite and Manage Members&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC14 Invite and Manage Members" sourceWordId="1634429416" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="94" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s034" value="" parent="1" sourceName="Ellipse 1187" sourceWordId="1679271267" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="131.378" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s035" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC15 Maintain Shared Tasks and Assignees&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC15 Maintain Shared Tasks and Assignees" sourceWordId="915472316" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="142.444" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s036" value="" parent="1" sourceName="Ellipse 1189" sourceWordId="1961931895" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="179.822" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s037" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC16 Maintain Shared Events&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC16 Maintain Shared Events" sourceWordId="2074613300" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="190.889" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s038" value="" parent="1" sourceName="Ellipse 1191" sourceWordId="501720225" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="228.267" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s039" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC17 Schedule Shared Tasks Privately&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC17 Schedule Shared Tasks Privately" sourceWordId="583986974" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="239.333" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s040" value="" parent="1" sourceName="Ellipse 1193" sourceWordId="1313469439" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="276.711" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s041" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC18 View and Report Project Progress&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC18 View and Report Project Progress" sourceWordId="1090923977" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="287.778" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s042" value="" parent="1" sourceName="Ellipse 1195" sourceWordId="1611738163" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="325.156" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s043" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC19 Maintain Shared Resources and Versions&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC19 Maintain Shared Resources and Versions" sourceWordId="1936582114" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="336.222" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s044" value="" parent="1" sourceName="Ellipse 1197" sourceWordId="2029602051" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=13.3333;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=#FFFFFF;strokeColor=#444444;strokeWidth=0.8;shape=ellipse;">
+          <mxGeometry x="168" y="373.6" width="353.333" height="39.4667" as="geometry" />
+        </mxCell>
+        <mxCell id="f05-s045" value="&lt;div style=&quot;line-height:17.3333px;white-space:nowrap;text-align:center;&quot;&gt;&lt;span style=&quot;font-size:12.6667px;color:#000000;&quot;&gt;UC20 Synchronize and Resolve Edit Conflicts&lt;/span&gt;&lt;/div&gt;" parent="1" sourceName="Text UC20 Synchronize and Resolve Edit Conflicts" sourceWordId="1479990442" vertex="1" style="html=1;whiteSpace=nowrap;overflow=visible;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=12.6667;fontColor=#000000;spacing=0;rounded=0;shadow=0;fillColor=none;strokeColor=none;strokeWidth=0;shape=rect;">
+          <mxGeometry x="172" y="384.667" width="345.333" height="17.3333" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

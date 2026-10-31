@@ -1,0 +1,15 @@
+{
+  "rule": "demo.task.title",
+  "max_length": 120,
+  "length_unit": "Kotlin String.length UTF-16 code units after trim",
+  "cases": [
+    {"input": "", "valid": false},
+    {"input": "   ", "valid": false},
+    {"input": "  准备访谈  ", "valid": true, "normalized": "准备访谈"}
+  ],
+  "generated_boundary_cases": [
+    {"repeat": "字", "count": 120, "valid": true},
+    {"repeat": "字", "count": 121, "valid": false}
+  ]
+}
+
