@@ -1,8 +1,7 @@
 package com.kaixu.presentation.viewmodel.tasks
 
 import androidx.lifecycle.ViewModelStore
-import com.kaixu.data.repository.DefaultTaskRepository
-import com.kaixu.data.datasource.memory.InMemoryTaskDataSource
+import com.kaixu.testing.TestTaskRepository
 import com.kaixu.domain.usecase.tasks.CreateTaskUseCase
 import com.kaixu.domain.usecase.tasks.ObserveTasksUseCase
 import com.kaixu.domain.usecase.tasks.RefreshTasksUseCase
@@ -14,14 +13,13 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class TaskEditorViewModelTest {
     private lateinit var store: ViewModelStore
-    private lateinit var source: InMemoryTaskDataSource
+    private lateinit var repository: TestTaskRepository
     private lateinit var vm: TaskEditorViewModel
 
     @BeforeTest fun setUp() {
         Dispatchers.setMain(StandardTestDispatcher())
         store = ViewModelStore()
-        source = InMemoryTaskDataSource(latencyMillis = 600)
-        val repository = DefaultTaskRepository(source)
+        repository = TestTaskRepository(latencyMillis = 600)
         vm = TaskEditorViewModel(
             CreateTaskUseCase(repository), ObserveTasksUseCase(repository), RefreshTasksUseCase(repository),
         )
@@ -39,7 +37,7 @@ class TaskEditorViewModelTest {
         vm.onSaveClicked()
         advanceUntilIdle()
         assertEquals("请输入任务标题", vm.uiState.value.errorMessage)
-        assertTrue(source.listTasks().isEmpty())
+        assertTrue(repository.tasks.value.isEmpty())
         assertEquals("   ", vm.uiState.value.draftTitle)
     }
 
@@ -57,16 +55,16 @@ class TaskEditorViewModelTest {
 
     @Test fun failurePreservesDraftAndRetryCreatesExactlyOneTask() = runTest {
         advanceUntilIdle()
-        source.failNextCreate()
+        repository.failNextCreate()
         vm.onTitleChanged("准备演示")
         vm.onSaveClicked()
         advanceUntilIdle()
         assertEquals("准备演示", vm.uiState.value.draftTitle)
         assertNotNull(vm.uiState.value.errorMessage)
-        assertTrue(source.listTasks().isEmpty())
+        assertTrue(repository.tasks.value.isEmpty())
         vm.onSaveClicked()
         advanceUntilIdle()
-        assertEquals(1, source.listTasks().size)
+        assertEquals(1, repository.tasks.value.size)
         assertNull(vm.uiState.value.errorMessage)
     }
 
@@ -75,10 +73,10 @@ class TaskEditorViewModelTest {
         vm.onTitleChanged("同一次操作")
         repeat(3) { vm.onSaveClicked() }
         advanceUntilIdle()
-        assertEquals(1, source.listTasks().size)
+        assertEquals(1, repository.tasks.value.size)
     }
 
-    @Test fun cancellingPendingDemoSaveLeavesDraftAndStorageUnchanged() = runTest {
+    @Test fun cancellingBeforeCommitLeavesDraftAndStorageUnchanged() = runTest {
         advanceUntilIdle()
         vm.onTitleChanged("稍后保存")
         vm.onSaveClicked()
@@ -86,7 +84,7 @@ class TaskEditorViewModelTest {
         vm.onCancelSaveClicked()
         advanceUntilIdle()
         assertEquals("稍后保存", vm.uiState.value.draftTitle)
-        assertTrue(source.listTasks().isEmpty())
+        assertTrue(repository.tasks.value.isEmpty())
         assertFalse(vm.uiState.value.isSaving)
         assertNull(vm.uiState.value.errorMessage)
     }
@@ -96,7 +94,7 @@ class TaskEditorViewModelTest {
         vm.onTitleChanged("字".repeat(121))
         vm.onSaveClicked()
         advanceUntilIdle()
-        assertTrue(source.listTasks().isEmpty())
+        assertTrue(repository.tasks.value.isEmpty())
         assertNotNull(vm.uiState.value.errorMessage)
     }
 
@@ -108,10 +106,10 @@ class TaskEditorViewModelTest {
         advanceUntilIdle()
         assertFalse(vm.uiState.value.isSaving)
         assertEquals("立即取消", vm.uiState.value.draftTitle)
-        assertTrue(source.listTasks().isEmpty())
+        assertTrue(repository.tasks.value.isEmpty())
         vm.onSaveClicked()
         advanceUntilIdle()
-        assertEquals(1, source.listTasks().size)
+        assertEquals(1, repository.tasks.value.size)
     }
 
     @Test fun maximumLengthTitleIsAccepted() = runTest {

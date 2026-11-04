@@ -81,7 +81,7 @@ class TaskEditorViewModel(
         }
     }
 
-    /** 只演示内存数据源取消；真实HTTP取消不保证服务器尚未提交。 */
+    /** 取消等待，不保证撤回已经提交的数据库写入。 */
     fun onCancelSaveClicked() { saveJob?.cancel() }
 }
 

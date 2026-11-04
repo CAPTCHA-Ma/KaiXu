@@ -16,7 +16,6 @@ import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 fun TaskEditorRoute(
     viewModel: TaskEditorViewModel,
     onOpenSettings: () -> Unit,
-    onSimulateSaveFailure: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     Column(
@@ -24,20 +23,13 @@ fun TaskEditorRoute(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("KaiXu 个人任务", style = MaterialTheme.typography.headlineMedium)
-        Text("教学示例 · 数据仅保存在本次运行内存中")
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = onOpenSettings) { Text("打开设置") }
-            TextButton(
-                enabled = !state.isSaving && !state.isLoading,
-                onClick = onSimulateSaveFailure,
-            ) { Text("模拟下一次保存失败") }
-        }
+        Text("任务保存在本机，重启后可继续查看")
+        TextButton(onClick = onOpenSettings) { Text("打开设置") }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             TaskEditorScreen(
                 state = state,
                 onTitleChanged = viewModel::onTitleChanged,
                 onSaveClicked = viewModel::onSaveClicked,
-                onCancelSaveClicked = viewModel::onCancelSaveClicked,
             )
         }
     }

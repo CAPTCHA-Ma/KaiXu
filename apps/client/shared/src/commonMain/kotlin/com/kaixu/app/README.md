@@ -1,6 +1,6 @@
 # 公共依赖装配区域
 
-这里保留共享业务依赖的装配，不再存放根界面 App.kt 或宿主 ViewModel。当前只有 `di/AppGraph.kt`，用于连接内存数据源、任务仓储和 UseCase。
+这里保留共享业务依赖的装配，不存放根界面 App.kt 或宿主 ViewModel。`di/AppGraph.kt` 接收宿主注入的 TaskDataSource，连接任务仓储与 UseCase；两端宿主均提供 Room 实现。
 
 适宜存放公共依赖配置、共享业务图的工厂，以及将来按账号创建数据范围的装配代码。具体实现放 di；业务判断应回到 domain，网络访问应回到 data。
 

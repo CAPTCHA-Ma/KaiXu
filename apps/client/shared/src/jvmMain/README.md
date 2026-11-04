@@ -1,6 +1,6 @@
 # 共享库的桌面 JVM平台实现
 
-本源集保存“共享库需要、实现依赖 JVM API”的代码。当前只有说明文档，没有适配源码；无需为了填满目录创建空类。
+本源集保存“共享库需要、实现依赖 JVM API”的代码。DesktopDatabaseFactory 打开持久用户目录或显式路径的 Room 数据库，复用公共驱动与迁移配置。
 
 适宜在 `kotlin/com/kaixu/` 对应业务包中存放平台网络引擎工厂、个人缓存驱动、安全凭据存储等实现。通用接口留在 commonMain，例如 core/platform/CredentialStore.kt；实现可命名为 DesktopCredentialStore.kt。数据适配可以放对应 data 包，不必全部堆进 core/platform。
 

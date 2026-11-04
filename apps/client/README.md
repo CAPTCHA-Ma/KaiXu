@@ -2,6 +2,10 @@
 
 在 Android Studio 或 IntelliJ IDEA 打开本目录。项目按“各端独立 UI，共享业务与数据，按需共享 ViewModel”组织。先看 [分层开发指南](../../docs/03-design/client-mvvm-guide.md)，再按各目录 README 查适宜存放的文件。
 
+桌面与 Android 任务均使用 Room 2.8.4 持久化，重启可读取。
+数据库定义、DAO、Entity 和迁移说明见 [本地数据源](shared/src/commonMain/kotlin/com/kaixu/data/datasource/local/README.md)。
+数据库版本 2 已包含任务、固定事件和个人工作时段表、DAO 和完整 CRUD 数据源接口，页面仍只使用任务标题；尚未实现账号分库与同步。
+
 ## 三个模块的边界
 
 | 模块 | 适宜存放的文件 |
@@ -43,7 +47,7 @@ domain/
 └── usecase/tasks/            创建、订阅、刷新动作
 data/
 ├── repository/              DefaultTaskRepository
-├── datasource/              接口、memory、remote/local 预留
+├── datasource/              接口、local Room 实现、remote 预留
 ├── dto/tasks/               HTTP 协议数据，预留
 └── mapper/                  数据转换，预留
 app/di/                     AppGraph 公共装配
@@ -56,7 +60,7 @@ Task、UiState、未来的 HTTP DTO 与缓存 Entity 职责不同。页面使用
 
 ## shared 中的平台源集
 
-shared 是多平台库，commonMain 才是跨平台公共源码。Android 选择 commonMain + androidMain，桌面选择 commonMain + jvmMain；当前平台源集只有 README，没有适配源码。jvmMain 对应当前 jvm() 目标，不自动供 Android 使用，也不专指 Windows。
+shared 是多平台库，commonMain 才是跨平台公共源码。Android 选择 commonMain + androidMain，桌面选择 commonMain + jvmMain；jvmMain 已包含桌面数据库创建适配。jvmMain 对应当前 jvm() 目标，不自动供 Android 使用，也不专指 Windows。
 
 库需要的平台网络引擎、缓存驱动、安全存储等可放相应平台源集。需要宿主配合的权限回调、窗口、托盘等放 App，也可以在 App 实现公共接口再注入。通过接口或必要的 expect/actual 连接，shared 不反向依赖 App。
 
@@ -96,11 +100,10 @@ Android APK 输出于 `androidApp/build/outputs/apk/debug/`；桌面安装包输
 
 1. 空标题保存：显示校验错误，列表不变。
 2. 输入“整理需求访谈”，新增任务：保存期间显示进行中，成功后增加任务并清空草稿。
-3. 点击“模拟下一次保存失败”，输入新标题后保存：错误可见，草稿保留，列表不增加。
-4. 再次新增：成功创建一次。
-5. 保存时取消：当前内存实现不会写入，草稿保留。真实 HTTP 取消能否确定提交状态必须另行处理。
+3. 关闭并重新打开应用：已保存任务仍在，未保存草稿不恢复。
+4. 两端不再提供模拟失败或取消保存按钮。失败保留草稿与重试由自动测试覆盖。
 
-关闭应用会丢失数据，两端内存互不共享。正式 HTTP 接入的 DTO、mapper、错误类型、权限、版本和幂等步骤见整体指南第7节；相关目录目前只有说明文档。
+已保存任务保留在各端自己的数据库文件中，两端尚未同步。未来 HTTP 接入的 DTO、mapper、错误类型、权限、版本和幂等步骤见整体指南第7节；remote 与 DTO 目录目前只有说明文档。
 
 ## 页面导航与验证
 

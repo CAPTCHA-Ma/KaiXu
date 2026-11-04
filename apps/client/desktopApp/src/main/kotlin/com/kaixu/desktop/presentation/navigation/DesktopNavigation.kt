@@ -32,7 +32,6 @@ fun DesktopNavigation(graph: AppGraph, modifier: Modifier = Modifier) {
                         launchSingleTop = true
                     }
                 },
-                onSimulateSaveFailure = graph::simulateNextSaveFailure,
             )
         }
         composable(DesktopDestination.SETTINGS) {

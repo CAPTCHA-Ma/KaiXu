@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `presentation/` | 两端交互一致时复用的 ViewModel、UiState | TaskEditorViewModel、TaskEditorUiState |
 | `domain/` | 业务对象、纯校验、仓储接口和 UseCase | Task、TaskTitle、CreateTaskUseCase |
-| `data/` | 仓储实现、数据源、未来的 DTO 和转换 | DefaultTaskRepository、InMemoryTaskDataSource |
+| `data/` | 仓储实现、数据源、未来的 DTO 和转换 | DefaultTaskRepository、RoomTaskDataSource |
 | `core/` | 多业务使用的网络、会话和平台能力接口 | 当前只有职责说明 |
 | `app/di/` | 创建和连接公共依赖 | AppGraph |
 

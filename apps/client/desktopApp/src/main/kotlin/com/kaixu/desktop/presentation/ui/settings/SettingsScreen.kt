@@ -23,8 +23,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         Text("设置与说明", style = MaterialTheme.typography.headlineMedium)
         TextButton(onClick = onBack) { Text("返回任务") }
         Text("当前为学习示例", style = MaterialTheme.typography.titleMedium)
-        Text("任务仅保存在本次运行的内存中，关闭应用后会丢失。")
+        Text("已保存任务存放在本机数据库中，关闭应用后仍会保留；未保存草稿不会持久化。")
         Text("返回任务页后，可以继续编辑刚才未保存的标题。")
-        Text("账号、云端同步和本地持久化尚未接入。")
+        Text("账号与云端同步尚未接入。")
     }
 }

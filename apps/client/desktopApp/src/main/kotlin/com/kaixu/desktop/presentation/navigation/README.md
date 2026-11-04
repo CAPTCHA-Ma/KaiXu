@@ -4,7 +4,7 @@
 
 本层接收公共 AppGraph，在任务 NavBackStackEntry 范围取得 TaskEditorViewModel，并注入三个 UseCase。仓储由宿主容器共享，草稿由页面 ViewModel 保留；Screen 与普通 Route 不访问数据源。
 
-打开设置使用 navigate 与 launchSingleTop，返回使用 popBackStack。设置页往返时任务条目仍在栈中，所以草稿与失败提示仍在；条目真正出栈后清理 ViewModel，进程重启仍会丢失内存数据。
+打开设置使用 navigate 与 launchSingleTop，返回使用 popBackStack。设置页往返时任务条目仍在栈中，所以草稿与失败提示仍在；条目真正出栈后清理 ViewModel。桌面已保存任务通过 Room 持久化，进程重启后仍在；未保存草稿不持久化。
 
 当前桌面使用页内返回按钮，没有新增快捷键；以后可在这里接入侧栏或主从页面选择，再由宿主处理具体键盘输入。
 
