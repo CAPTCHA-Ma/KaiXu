@@ -1,6 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
+    alias(libs.plugins.room)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.library) apply false
 }
@@ -21,6 +23,8 @@ kotlin {
     }
     sourceSets {
         commonMain.dependencies {
+            api(libs.room.runtime)
+            implementation(libs.sqlite.bundled)
             implementation(libs.lifecycle.viewmodel.core)
             implementation(libs.coroutines.core)
         }
@@ -29,6 +33,15 @@ kotlin {
             implementation(libs.coroutines.test)
         }
     }
+}
+
+dependencies {
+    add("kspJvm", libs.room.compiler)
+    if (!desktopOnly) add("kspAndroid", libs.room.compiler)
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 // 只有启用Android目标时才读取本机SDK和配置Android library。

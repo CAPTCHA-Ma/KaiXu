@@ -27,12 +27,12 @@ fun DesktopNavigation(graph: AppGraph, modifier: Modifier = Modifier) {
             }
             TaskEditorRoute(
                 viewModel = editor,
+                onSimulateSaveFailure = if (graph.isMemoryDemo) graph::simulateNextSaveFailure else null,
                 onOpenSettings = {
                     navController.navigate(DesktopDestination.SETTINGS) {
                         launchSingleTop = true
                     }
                 },
-                onSimulateSaveFailure = graph::simulateNextSaveFailure,
             )
         }
         composable(DesktopDestination.SETTINGS) {

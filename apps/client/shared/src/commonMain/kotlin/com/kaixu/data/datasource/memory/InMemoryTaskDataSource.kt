@@ -2,6 +2,7 @@ package com.kaixu.data.datasource.memory
 
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.data.datasource.TaskDataSource
+import com.kaixu.data.datasource.local.entity.newLocalId
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -10,7 +11,6 @@ import kotlinx.coroutines.sync.withLock
 class InMemoryTaskDataSource(private val latencyMillis: Long = 600) : TaskDataSource {
     private val mutex = Mutex()
     private val records = mutableListOf<Task>()
-    private var nextId = 1L
     private var failNext = false
 
     fun failNextCreate() { failNext = true }
@@ -24,7 +24,7 @@ class InMemoryTaskDataSource(private val latencyMillis: Long = 600) : TaskDataSo
                 failNext = false
                 throw DemoSaveException()
             }
-            Task(nextId++, title).also { records.add(0, it) }
+            Task(newLocalId(), title).also { records.add(0, it) }
         }
     }
 }

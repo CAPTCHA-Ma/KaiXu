@@ -16,7 +16,7 @@ fun TaskEditorScreen(
     state: TaskEditorUiState,
     onTitleChanged: (String) -> Unit,
     onSaveClicked: () -> Unit,
-    onCancelSaveClicked: () -> Unit,
+    onCancelSaveClicked: (() -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -36,7 +36,9 @@ fun TaskEditorScreen(
             }
             if (state.isSaving) {
                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                TextButton(onClick = onCancelSaveClicked) { Text("取消") }
+                onCancelSaveClicked?.let { cancel ->
+                    TextButton(onClick = cancel) { Text("取消") }
+                }
             }
         }
         state.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }

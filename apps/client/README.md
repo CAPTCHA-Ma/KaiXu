@@ -2,6 +2,10 @@
 
 在 Android Studio 或 IntelliJ IDEA 打开本目录。项目按“各端独立 UI，共享业务与数据，按需共享 ViewModel”组织。先看 [分层开发指南](../../docs/03-design/client-mvvm-guide.md)，再按各目录 README 查适宜存放的文件。
 
+当前桌面任务已使用 Room 2.8.4 持久化，重启可读取；Android 仍使用内存示例。
+数据库定义、DAO、Entity 和迁移说明见 [本地数据源](shared/src/commonMain/kotlin/com/kaixu/data/datasource/local/README.md)。
+数据库版本 2 已包含任务、固定事件和个人工作时段表及基础 DAO，页面仍只使用任务标题；尚未实现账号分库与同步；文中较早的内存演示步骤仅适用于 Android 或测试替身。
+
 ## 三个模块的边界
 
 | 模块 | 适宜存放的文件 |
@@ -56,7 +60,7 @@ Task、UiState、未来的 HTTP DTO 与缓存 Entity 职责不同。页面使用
 
 ## shared 中的平台源集
 
-shared 是多平台库，commonMain 才是跨平台公共源码。Android 选择 commonMain + androidMain，桌面选择 commonMain + jvmMain；当前平台源集只有 README，没有适配源码。jvmMain 对应当前 jvm() 目标，不自动供 Android 使用，也不专指 Windows。
+shared 是多平台库，commonMain 才是跨平台公共源码。Android 选择 commonMain + androidMain，桌面选择 commonMain + jvmMain；jvmMain 已包含桌面数据库创建适配。jvmMain 对应当前 jvm() 目标，不自动供 Android 使用，也不专指 Windows。
 
 库需要的平台网络引擎、缓存驱动、安全存储等可放相应平台源集。需要宿主配合的权限回调、窗口、托盘等放 App，也可以在 App 实现公共接口再注入。通过接口或必要的 expect/actual 连接，shared 不反向依赖 App。
 

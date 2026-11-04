@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.kaixu.desktop.app.DesktopApp
+import com.kaixu.app.di.AppGraph
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -23,6 +24,7 @@ class AppNavigationTest {
     val compose = createComposeRule()
     private val owner = TestHostOwner()
     private val showApp = mutableStateOf(true)
+    private val graph = AppGraph()
 
     @After
     fun clearHost() {
@@ -42,7 +44,7 @@ class AppNavigationTest {
                     LocalLifecycleOwner provides owner,
                     LocalViewModelStoreOwner provides owner,
                 ) {
-                    DesktopApp()
+                    DesktopApp(graph = graph)
                 }
             }
         }
