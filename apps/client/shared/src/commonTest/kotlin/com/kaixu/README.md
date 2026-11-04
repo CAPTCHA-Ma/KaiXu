@@ -3,7 +3,7 @@
 测试目录对应生产层级，文件名使用 `XxxTest.kt`。
 
 - `domain/usecase/tasks/CreateTaskUseCaseTest.kt`：绕过 ViewModel 调用时仍校验、规范化输入。
-- `presentation/viewmodel/tasks/TaskEditorViewModelTest.kt`：真实 UseCase 和仓储链下的草稿、失败、重试、取消、连续点击与边界。
+- `presentation/viewmodel/tasks/TaskEditorViewModelTest.kt`：真实 UseCase 与测试 Repository 下的草稿、失败、重试、取消、连续点击与边界。
 
 新增纯规则测试放 domain/validation；DTO 转换和数据策略测试放 data。未来网络契约测试使用可控服务或响应样本，不依赖外部生产系统。运行：客户端目录 `./gradlew -PdesktopOnly=true :shared:jvmTest`。
 

@@ -15,4 +15,4 @@ Android 构建选择 `commonMain + androidMain`；桌面构建选择 `commonMain
 
 本模块不再使用 Compose UI 与导航插件或依赖；共享 ViewModel 只依赖 Lifecycle ViewModel 核心与协程。以后如确有跨端通用的 UI，可另行评估独立 UI 库，不要为了复用一个按钮把两端完整导航重新合并。
 
-先读 [客户端总览](../README.md) 和 [分层开发指南](../../../docs/03-design/client-mvvm-guide.md)。共享代码不意味着共享运行中的对象；当前两个进程各自持有内存数据，没有云端同步与持久化。
+先读 [客户端总览](../README.md) 和 [分层开发指南](../../../docs/03-design/client-mvvm-guide.md)。共享代码不意味着共享运行中的对象；两端各自使用本地 Room 数据库，已保存数据可在重启后恢复，尚无云端同步。

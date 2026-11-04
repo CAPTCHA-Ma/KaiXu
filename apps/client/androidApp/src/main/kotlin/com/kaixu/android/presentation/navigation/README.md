@@ -4,7 +4,7 @@
 
 本层接收公共 AppGraph，在任务 NavBackStackEntry 范围取得 TaskEditorViewModel，并注入三个 UseCase。仓储由宿主容器共享，草稿由页面 ViewModel 保留；Screen 与普通 Route 不访问数据源。
 
-打开设置使用 navigate 与 launchSingleTop，返回使用 popBackStack。设置页往返时任务条目仍在栈中，所以草稿与失败提示仍在；条目真正出栈后清理 ViewModel，进程重启仍会丢失内存数据。
+打开设置使用 navigate 与 launchSingleTop，返回使用 popBackStack。设置页往返时任务条目仍在栈中，所以草稿与失败提示仍在；条目真正出栈后清理 ViewModel。进程重启后已保存任务从本地数据库重新读取，未保存草稿不保证恢复。
 
 Android 系统返回由导航框架处理；若以后接底部导航，需要明确目的地与状态恢复策略。
 

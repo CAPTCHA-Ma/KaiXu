@@ -1,6 +1,6 @@
 # 共享库的Android平台实现
 
-本源集保存“共享库需要、实现依赖 Android API”的代码。当前只有说明文档，没有适配源码；无需为了填满目录创建空类。
+本源集保存“共享库需要、实现依赖 Android API”的代码。AndroidDatabaseFactory 使用应用上下文打开私有目录下的 Room 数据库，复用 commonMain 的驱动与迁移配置。
 
 适宜在 `kotlin/com/kaixu/` 对应业务包中存放平台网络引擎工厂、个人缓存驱动、安全凭据存储等实现。通用接口留在 commonMain，例如 core/platform/CredentialStore.kt；实现可命名为 AndroidCredentialStore.kt。数据适配可以放对应 data 包，不必全部堆进 core/platform。
 

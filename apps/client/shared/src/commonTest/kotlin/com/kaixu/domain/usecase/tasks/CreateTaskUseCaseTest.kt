@@ -1,7 +1,6 @@
 package com.kaixu.domain.usecase.tasks
 
-import com.kaixu.data.datasource.memory.InMemoryTaskDataSource
-import com.kaixu.data.repository.DefaultTaskRepository
+import com.kaixu.testing.TestTaskRepository
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,17 +9,17 @@ import kotlin.test.assertTrue
 
 class CreateTaskUseCaseTest {
     @Test fun validatesEvenWithoutAViewModel() = runTest {
-        val source = InMemoryTaskDataSource(latencyMillis = 0)
-        val createTask = CreateTaskUseCase(DefaultTaskRepository(source))
+        val repository = TestTaskRepository()
+        val createTask = CreateTaskUseCase(repository)
         assertFailsWith<IllegalArgumentException> { createTask("   ") }
         assertFailsWith<IllegalArgumentException> { createTask("字".repeat(121)) }
-        assertTrue(source.listTasks().isEmpty())
+        assertTrue(repository.tasks.value.isEmpty())
     }
 
     @Test fun normalizesTitleForEveryCaller() = runTest {
-        val source = InMemoryTaskDataSource(latencyMillis = 0)
-        val createTask = CreateTaskUseCase(DefaultTaskRepository(source))
+        val repository = TestTaskRepository()
+        val createTask = CreateTaskUseCase(repository)
         createTask("  整理课件  ")
-        assertEquals("整理课件", source.listTasks().single().title)
+        assertEquals("整理课件", repository.tasks.value.single().title)
     }
 }

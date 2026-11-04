@@ -14,6 +14,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.kaixu.desktop.app.DesktopApp
 import com.kaixu.app.di.AppGraph
+import com.kaixu.data.datasource.TaskDataSource
+import com.kaixu.data.datasource.local.LocalDataSources
+import com.kaixu.data.datasource.local.database.openDesktopDatabase
+import com.kaixu.domain.model.tasks.Task
+import java.nio.file.Files
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -24,15 +29,32 @@ class AppNavigationTest {
     val compose = createComposeRule()
     private val owner = TestHostOwner()
     private val showApp = mutableStateOf(true)
-    private val graph = AppGraph()
+    private val directory = Files.createTempDirectory("kaixu-navigation-test").toFile()
+    private val database = openDesktopDatabase(directory.resolve("navigation.db"))
+    private val source = LocalDataSources(database).tasks
+    private var failNextSave = false
+    private val graph = AppGraph(object : TaskDataSource by source {
+        override suspend fun createTask(title: String): Task {
+            if (failNextSave) {
+                failNextSave = false
+                error("测试保存失败")
+            }
+            return source.createTask(title)
+        }
+    })
 
     @After
     fun clearHost() {
-        compose.runOnIdle { showApp.value = false }
-        compose.waitForIdle()
-        compose.runOnUiThread {
-            owner.lifecycle.currentState = Lifecycle.State.DESTROYED
-            owner.viewModelStore.clear()
+        try {
+            compose.runOnIdle { showApp.value = false }
+            compose.waitForIdle()
+            compose.runOnUiThread {
+                owner.lifecycle.currentState = Lifecycle.State.DESTROYED
+                owner.viewModelStore.clear()
+            }
+        } finally {
+            database.close()
+            directory.deleteRecursively()
         }
     }
 
@@ -48,6 +70,11 @@ class AppNavigationTest {
                 }
             }
         }
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasText("任务标题") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("模拟下一次保存失败").assertDoesNotExist()
+        compose.onNodeWithText("任务保存在本机，重启后可继续查看").assertExists()
     }
 
     @Test
@@ -68,7 +95,7 @@ class AppNavigationTest {
     @Test
     fun failedSaveAndDraftSurviveSettingsRoundTripAndCanRetry() {
         startApp()
-        compose.onNodeWithText("模拟下一次保存失败").performClick()
+        failNextSave = true
         compose.onNodeWithText("任务标题").performTextInput("保留失败草稿")
         compose.onNodeWithText("新增任务").performClick()
         compose.waitUntil(5_000) {

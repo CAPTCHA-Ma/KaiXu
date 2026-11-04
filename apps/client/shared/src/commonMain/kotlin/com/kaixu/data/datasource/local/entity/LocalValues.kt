@@ -12,9 +12,9 @@ fun newLocalId(): String = Uuid.random().toString()
 @OptIn(kotlin.time.ExperimentalTime::class)
 fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
-enum class TaskStatus { TODO, IN_PROGRESS, COMPLETED }
-enum class TaskPriority { LOW, NORMAL, HIGH }
-enum class WorkSessionStatus { PLANNED, COMPLETED, CANCELLED }
+typealias TaskStatus = com.kaixu.domain.model.tasks.TaskStatus
+typealias TaskPriority = com.kaixu.domain.model.tasks.TaskPriority
+typealias WorkSessionStatus = com.kaixu.domain.model.scheduling.WorkSessionStatus
 // 当前仅实现 LOCAL_ONLY；其余值为后续同步字段预留，不代表已实现同步。
 enum class SyncState { LOCAL_ONLY, PENDING, SYNCED, CONFLICT, FAILED }
 
