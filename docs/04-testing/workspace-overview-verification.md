@@ -20,7 +20,7 @@ Issue #10，依据 UC03.1–UC03.3 与《工作区 SPEC》§5。本批基于 PR 
 .\gradlew.bat -PdesktopOnly=true :shared:jvmTest :desktopApp:test
 ```
 
-新增五项用例层测试、五项 ViewModel 测试（含全局任务页刷新恢复）和一项真实 Room + Compose 界面流程；全套包含前序功能测试。2026-11-08 本地验证通过，共 47 项，零失败、零跳过。
+新增五项用例层测试、五项 ViewModel 测试（含全局任务页刷新恢复）和一项真实 Room + Compose 界面流程。合入 PR #16 的长说明修复 `49ac1c5` 后，2026-11-08 重新验证全套 48 项测试，零失败、零跳过。
 
 | 场景 | 证据 |
 | --- | --- |
@@ -32,6 +32,7 @@ Issue #10，依据 UC03.1–UC03.3 与《工作区 SPEC》§5。本批基于 PR 
 | 空数据、读取失败和重试；筛选失败不显示旧筛选结果 | WorkspaceOverviewViewModelTest 使用可控失败数据源，成功路径界面测试使用真实 Room 文件 |
 | 日程和个人工作时段详情导航 | WorkspaceOverviewScreenTest |
 | 从个人工作时段详情返回后恢复原滚动位置 | WorkspaceOverviewScreenTest：非零滚动位置误差不超过 1 像素 |
+| 40 行说明可滚动阅读，设置和编辑入口可达，编辑框保留全文 | WorkspaceScreenTest（PR #16 的回归测试） |
 | 全局任务刷新失败后成功重读，清除旧读取错误且保留草稿 | TaskEditorViewModelTest |
 
 截图由实际 Compose 测试页面生成，数据来自真实临时 Room 文件：
