@@ -195,7 +195,6 @@ private fun WorkspaceDetail(
             Text("仅自己可见", style = MaterialTheme.typography.bodySmall)
         }
         Text(space.name, style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Serif)
-        space.description?.takeIf { it.isNotBlank() }?.let { Text(it) }
         TabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0), containerColor = WorkspaceBackground) {
             tabs.forEach { label -> Tab(selected = tab == label, onClick = { tab = label }, text = { Text(label) }) }
         }
@@ -227,6 +226,7 @@ private fun WorkspaceDetail(
                         }
                     }
                     if (space.kind == WorkspaceKind.COURSE) WorkspaceProjects(space, state, vm)
+                    space.description?.takeIf { it.isNotBlank() }?.let { Text(it) }
                 }
                 "关联项目" -> WorkspaceProjects(space, state, vm)
                 "设置" -> Surface(shape = RoundedCornerShape(12.dp)) {
