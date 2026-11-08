@@ -44,7 +44,7 @@ class WorkspaceScreenTest {
             if (visible.value) {
                 CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {
                     Box(Modifier.fillMaxSize()) {
-                        DesktopApp(AppGraph(sources.tasks), sources.workspaces)
+                        DesktopApp(AppGraph(sources.tasks, sources.fixedEvents), sources.workspaces)
                     }
                 }
             }

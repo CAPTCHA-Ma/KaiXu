@@ -4,6 +4,8 @@
 
 **第一次阅读先看 [客户端分层与功能开发指南](docs/03-design/client-mvvm-guide.md)**，其中包含后端分层类比、真实新增任务调用链、状态与 DTO 区别，以及 SRS 功能拆分方法。运行工程看 [客户端 README](apps/client/README.md)。
 
+软件系统设计（架构、数据库、接口、UI/UX、安全）见 [设计文档索引](docs/03-design/README.md)；可直接打开[高保真原型](docs/03-design/system-design/prototype/index.html)查看双端界面。
+
 ## 项目目录
 
 | 目录 | 职责 |

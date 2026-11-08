@@ -1,0 +1,1838 @@
+openapi: 3.1.0
+info:
+  title: KaiXu API
+  version: 1.0.0
+  description: |
+    KaiXu 设计与联调契约草案。桌面业务写操作优先走 /sync/push（本地优先），
+    Android 与在线专用操作直接调用 REST。共享接口不会返回他人私人工作时段、
+    剩余估时或番茄钟明细。
+  contact:
+    name: KaiXu Team
+servers:
+  - url: https://api.kaixu.example/api/v1
+    description: Production-like demo
+  - url: http://localhost:8000/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+  - name: Workspaces
+  - name: Collaboration
+  - name: Tasks
+  - name: Scheduling
+  - name: Resources
+  - name: Intake
+  - name: Sync
+  - name: Focus
+  - name: Ops
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册账号
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                device:
+                  $ref: '#/components/schemas/DeviceInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 旋转刷新令牌
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 退出并撤销当前会话
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '204':
+          description: No Content
+
+  /me:
+    get:
+      tags: [Auth]
+      summary: 当前用户与设置
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      summary: 工作区目录
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [COURSE, PROJECT]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, ARCHIVED]
+        - name: q
+          in: query
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workspace'
+                  nextCursor:
+                    type: [string, 'null']
+                  hasMore:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Workspaces]
+      summary: 创建课程或项目工作区
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, name]
+              properties:
+                kind:
+                  type: string
+                  enum: [COURSE, PROJECT]
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+                description:
+                  type: string
+                  maxLength: 2000
+                linkedCourseId:
+                  type: [string, 'null']
+                  format: uuid
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /workspaces/{workspaceId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Workspaces]
+      summary: 工作区概览
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Workspaces]
+      summary: 编辑工作区
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version:
+                  type: integer
+                  minimum: 1
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+                description:
+                  type: string
+                linkedCourseId:
+                  type: [string, 'null']
+                  format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /workspaces/{workspaceId}/members:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Collaboration]
+      summary: 项目成员列表
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkspaceMember'
+
+  /workspaces/{workspaceId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [Collaboration]
+      summary: 创建邀请（仅 OWNER）
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresInDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 7
+                  default: 7
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitationId:
+                    type: string
+                    format: uuid
+                  token:
+                    type: string
+                    description: 仅创建响应返回一次；服务端只存哈希
+                  expiresAt:
+                    type: string
+                    format: date-time
+
+  /invitations/{token}:accept:
+    post:
+      tags: [Collaboration]
+      summary: 受邀人接受邀请
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '409':
+          description: Used, expired or revoked invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: 任务列表
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: workspaceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [TODO, IN_PROGRESS, COMPLETED]
+        - name: assigneeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: deadline
+          in: query
+          schema:
+            type: string
+            enum: [OVERDUE, UPCOMING, NONE]
+        - name: q
+          in: query
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  nextCursor:
+                    type: [string, 'null']
+                  hasMore:
+                    type: boolean
+    post:
+      tags: [Tasks]
+      summary: 创建任务
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                workspaceId:
+                  type: [string, 'null']
+                  format: uuid
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type: string
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, URGENT]
+                deadlineDate:
+                  type: [string, 'null']
+                  format: date
+                deadlineAt:
+                  type: [string, 'null']
+                  format: date-time
+                estimatedMinutes:
+                  type: [integer, 'null']
+                  minimum: 1
+                  maximum: 100000
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      summary: 任务详情
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Tasks]
+      summary: 编辑任务
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version:
+                  type: integer
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type: string
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, COMPLETED]
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, URGENT]
+                deadlineDate:
+                  type: [string, 'null']
+                  format: date
+                deadlineAt:
+                  type: [string, 'null']
+                  format: date-time
+                estimatedMinutes:
+                  type: [integer, 'null']
+                assigneeUserId:
+                  type: [string, 'null']
+                  format: uuid
+                blockedNote:
+                  type: [string, 'null']
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tasks/{taskId}:complete:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    post:
+      tags: [Tasks]
+      summary: 完成任务并处理本人未来时段（原子）
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version, sessionPolicy]
+              properties:
+                version:
+                  type: integer
+                sessionPolicy:
+                  type: string
+                  enum: [KEEP_FUTURE, CANCEL_FUTURE]
+                note:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task:
+                    $ref: '#/components/schemas/Task'
+                  sessions:
+                    type: object
+                    properties:
+                      retained:
+                        type: integer
+                      cancelled:
+                        type: integer
+                      historicalRetained:
+                        type: integer
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /tasks/{taskId}/my-state:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      summary: 本人剩余估时（私有）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    type: string
+                    format: uuid
+                  remainingMinutes:
+                    type: [integer, 'null']
+                  version:
+                    type: integer
+    put:
+      tags: [Tasks]
+      summary: 更新本人剩余估时
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [remainingMinutes, version]
+              properties:
+                remainingMinutes:
+                  type: integer
+                  minimum: 0
+                version:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  remainingMinutes:
+                    type: integer
+                  version:
+                    type: integer
+
+  /tasks/{taskId}/stages:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Tasks]
+      summary: 任务阶段列表
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskStage'
+    post:
+      tags: [Tasks]
+      summary: 新增任务阶段
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskStageInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStage'
+
+  /events:
+    get:
+      tags: [Scheduling]
+      summary: 固定事件列表
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: workspaceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FixedEvent'
+    post:
+      tags: [Scheduling]
+      summary: 创建固定事件
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, startsAt, endsAt]
+              properties:
+                workspaceId:
+                  type: [string, 'null']
+                  format: uuid
+                title:
+                  type: string
+                description:
+                  type: string
+                startsAt:
+                  type: string
+                  format: date-time
+                endsAt:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedEvent'
+
+  /work-sessions:
+    get:
+      tags: [Scheduling]
+      summary: 本人工作时段
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: taskId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkSession'
+    post:
+      tags: [Scheduling]
+      summary: 创建本人工作时段
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId, startsAt, endsAt]
+              properties:
+                taskId:
+                  type: string
+                  format: uuid
+                startsAt:
+                  type: string
+                  format: date-time
+                endsAt:
+                  type: string
+                  format: date-time
+                note:
+                  type: string
+                overlapConfirmed:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkSession'
+        '409':
+          description: Time order invalid or deadline warning requires confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /work-sessions:check-conflicts:
+    post:
+      tags: [Scheduling]
+      summary: 预览时段冲突（不写）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId, startsAt, endsAt]
+              properties:
+                taskId:
+                  type: string
+                  format: uuid
+                startsAt:
+                  type: string
+                  format: date-time
+                endsAt:
+                  type: string
+                  format: date-time
+                excludeSessionId:
+                  type: [string, 'null']
+                  format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hasConflicts:
+                    type: boolean
+                  conflicts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                          enum: [OVERLAP, DEADLINE]
+                        sessionId:
+                          type: string
+                          format: uuid
+                        startsAt:
+                          type: string
+                          format: date-time
+                        endsAt:
+                          type: string
+                          format: date-time
+                  deadlineWarning:
+                    type: [string, 'null']
+                  requiresConfirmation:
+                    type: boolean
+
+  /workspaces/{workspaceId}/resources:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Resources]
+      summary: 资料列表与搜索
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: q
+          in: query
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Resource'
+                  nextCursor:
+                    type: [string, 'null']
+                  hasMore:
+                    type: boolean
+    post:
+      tags: [Resources]
+      summary: 新建资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, kind]
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                description:
+                  type: string
+                kind:
+                  type: string
+                  enum: [LINK, TEXT, ATTACHMENT]
+                url:
+                  type: [string, 'null']
+                  format: uri
+                textContent:
+                  type: [string, 'null']
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+  /resources/{resourceId}:
+    parameters:
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Resources]
+      summary: 资料详情
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /resources/{resourceId}/attachments:presign:
+    parameters:
+      - name: resourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Resources]
+      summary: 申请附件上传 URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName, contentType, sizeBytes, sha256]
+              properties:
+                fileName:
+                  type: string
+                contentType:
+                  type: string
+                sizeBytes:
+                  type: integer
+                  maximum: 20971520
+                sha256:
+                  type: string
+                  pattern: '^[a-fA-F0-9]{64}$'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                    format: uri
+                  method:
+                    type: string
+                    const: PUT
+                  expiresAt:
+                    type: string
+                    format: date-time
+                  attachmentId:
+                    type: string
+                    format: uuid
+                  nextVersionNo:
+                    type: integer
+        '413':
+          $ref: '#/components/responses/TooLarge'
+
+  /candidates:
+    get:
+      tags: [Intake]
+      summary: 候选列表
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, IGNORED, NEEDS_REVIEW]
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [NEW, FIELD_CHANGE, SUSPECTED_DUPLICATE]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Candidate'
+                  nextCursor:
+                    type: [string, 'null']
+                  hasMore:
+                    type: boolean
+
+  /candidates/{candidateId}:accept:
+    parameters:
+      - name: candidateId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Intake]
+      summary: 接受候选为任务/事件
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [candidateVersion, targetType, fields]
+              properties:
+                candidateVersion:
+                  type: integer
+                targetType:
+                  type: string
+                  enum: [TASK, EVENT]
+                workspaceId:
+                  type: [string, 'null']
+                  format: uuid
+                fields:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  candidate:
+                    $ref: '#/components/schemas/Candidate'
+                  task:
+                    $ref: '#/components/schemas/Task'
+                  event:
+                    $ref: '#/components/schemas/FixedEvent'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /sync/push:
+    post:
+      tags: [Sync]
+      summary: 批量上传桌面 outbox 操作
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncPushRequest'
+      responses:
+        '200':
+          description: Per-operation results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPushResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sync/pull:
+    get:
+      tags: [Sync]
+      summary: 拉取当前用户可见变更
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPullResponse'
+        '503':
+          description: Cursor expired; perform a full resync
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /focus-sessions:
+    post:
+      tags: [Focus]
+      summary: 开始番茄钟
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientSessionId, taskId, targetMinutes]
+              properties:
+                clientSessionId:
+                  type: string
+                  format: uuid
+                taskId:
+                  type: string
+                  format: uuid
+                workSessionId:
+                  type: [string, 'null']
+                  format: uuid
+                targetMinutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 720
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FocusSession'
+        '409':
+          description: Another focus session is active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /focus-sessions/{sessionId}/segments:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Focus]
+      summary: 上报前台/后台时间片
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [segments]
+              properties:
+                segments:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [clientSegmentId, kind, startedAt, endsAt]
+                    properties:
+                      clientSegmentId:
+                        type: string
+                        format: uuid
+                      kind:
+                        type: string
+                        enum: [FOREGROUND, BACKGROUND]
+                      startedAt:
+                        type: string
+                        format: date-time
+                      endsAt:
+                        type: string
+                        format: date-time
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FocusSession'
+
+  /focus-sessions/{sessionId}:stop:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Focus]
+      summary: 结束番茄钟并计算是否达标
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FocusSession'
+
+  /healthz:
+    get:
+      tags: [Ops]
+      summary: 存活探针
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    const: ok
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+    DeviceId:
+      name: X-Device-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or expired credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not found or not visible
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Version conflict or invalid state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooLarge:
+      description: File exceeds 20 MB
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [type, title, status, code, detail, requestId]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+        detail:
+          type: string
+        instance:
+          type: string
+        requestId:
+          type: string
+        conflict:
+          type: object
+          additionalProperties: true
+
+    DeviceInput:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum: [WINDOWS, MACOS, ANDROID]
+        name:
+          type: string
+        appVersion:
+          type: string
+
+    AuthTokens:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        locale:
+          type: string
+        settings:
+          type: object
+          properties:
+            timezone:
+              type: string
+            weekStartsOn:
+              type: integer
+            defaultFocusMinutes:
+              type: integer
+
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ownerUserId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [COURSE, PROJECT]
+        visibility:
+          type: string
+          enum: [PERSONAL, SHARED]
+        name:
+          type: string
+        description:
+          type: string
+        linkedCourse:
+          type: object
+          properties:
+            visible:
+              type: boolean
+            id:
+              type: [string, 'null']
+              format: uuid
+            label:
+              type: string
+        status:
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WorkspaceMember:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [OWNER, MEMBER]
+        status:
+          type: string
+          enum: [ACTIVE, LEFT, REMOVED]
+        joinedAt:
+          type: string
+          format: date-time
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspaceId:
+          type: [string, 'null']
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, COMPLETED]
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, URGENT]
+        deadlineDate:
+          type: [string, 'null']
+          format: date
+        deadlineAt:
+          type: [string, 'null']
+          format: date-time
+        estimatedMinutes:
+          type: [integer, 'null']
+        assignee:
+          type: [object, 'null']
+          properties:
+            userId:
+              type: string
+              format: uuid
+            displayName:
+              type: string
+        blockedNote:
+          type: [string, 'null']
+        lastModifiedBy:
+          type: [object, 'null']
+          properties:
+            userId:
+              type: string
+              format: uuid
+            displayName:
+              type: string
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+
+    TaskStage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        goal:
+          type: string
+        sortOrder:
+          type: integer
+        estimatedMinutes:
+          type: [integer, 'null']
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, COMPLETED]
+        version:
+          type: integer
+
+    TaskStageInput:
+      type: object
+      required: [name, sortOrder]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        goal:
+          type: string
+        sortOrder:
+          type: integer
+          minimum: 0
+        estimatedMinutes:
+          type: [integer, 'null']
+          minimum: 1
+        dependsOnStageIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    WorkSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        taskId:
+          type: [string, 'null']
+          format: uuid
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+        status:
+          type: string
+          enum: [PLANNED, COMPLETED, CANCELLED]
+        isLocked:
+          type: boolean
+        overlapConfirmed:
+          type: boolean
+        detachedAt:
+          type: [string, 'null']
+          format: date-time
+        version:
+          type: integer
+
+    FixedEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspaceId:
+          type: [string, 'null']
+          format: uuid
+        ownerUserId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        recurrenceRule:
+          type: [string, 'null']
+        version:
+          type: integer
+
+    Resource:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workspaceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        kind:
+          type: string
+          enum: [LINK, TEXT, ATTACHMENT]
+        url:
+          type: [string, 'null']
+        textContent:
+          type: [string, 'null']
+        currentAttachment:
+          type: [object, 'null']
+          properties:
+            id:
+              type: string
+              format: uuid
+            versionNo:
+              type: integer
+            fileName:
+              type: string
+            sizeBytes:
+              type: integer
+        version:
+          type: integer
+
+    Candidate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [NEW, FIELD_CHANGE, SUSPECTED_DUPLICATE]
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, IGNORED, NEEDS_REVIEW]
+        sourceRecordId:
+          type: [string, 'null']
+          format: uuid
+        sourceVersion:
+          type: string
+        title:
+          type: string
+        originalText:
+          type: string
+        sourceUrl:
+          type: [string, 'null']
+        dueDate:
+          type: [string, 'null']
+          format: date
+        dueAt:
+          type: [string, 'null']
+          format: date-time
+        fields:
+          type: object
+          additionalProperties: true
+        targetTaskId:
+          type: [string, 'null']
+          format: uuid
+        targetEventId:
+          type: [string, 'null']
+          format: uuid
+        version:
+          type: integer
+
+    SyncOperation:
+      type: object
+      required: [operationId, entityType, entityId, operationType, payload]
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+          enum: [WORKSPACE, TASK, TASK_STAGE, FIXED_EVENT, WORK_SESSION, RESOURCE, RESOURCE_LINK, TASK_MY_STATE, CANDIDATE]
+        entityId:
+          type: string
+          format: uuid
+        operationType:
+          type: string
+          enum: [CREATE, UPDATE, DELETE, ARCHIVE, RESTORE, COMPLETE, REOPEN, ACCEPT, IGNORE, REORDER]
+        baseVersion:
+          type: integer
+        payload:
+          type: object
+          additionalProperties: true
+        clientTime:
+          type: string
+          format: date-time
+
+    SyncPushRequest:
+      type: object
+      required: [deviceId, operations]
+      properties:
+        deviceId:
+          type: string
+          format: uuid
+        clientTime:
+          type: string
+          format: date-time
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/SyncOperation'
+
+    SyncResult:
+      type: object
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [APPLIED, CONFLICT, REJECTED, FAILED]
+        newVersion:
+          type: [integer, 'null']
+        serverRecord:
+          type: [object, 'null']
+          additionalProperties: true
+        errorCode:
+          type: [string, 'null']
+        errorMessage:
+          type: [string, 'null']
+        currentVersion:
+          type: [integer, 'null']
+        current:
+          type: [object, 'null']
+          additionalProperties: true
+
+    SyncPushResponse:
+      type: object
+      properties:
+        serverTime:
+          type: string
+          format: date-time
+        serverCursor:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncResult'
+
+    Change:
+      type: object
+      properties:
+        seq:
+          type: integer
+        entityType:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        op:
+          type: string
+          enum: [UPSERT, DELETE]
+        workspaceId:
+          type: [string, 'null']
+          format: uuid
+        payload:
+          type: [object, 'null']
+          additionalProperties: true
+
+    SyncPullResponse:
+      type: object
+      properties:
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Change'
+        nextCursor:
+          type: integer
+        hasMore:
+          type: boolean
+        serverTime:
+          type: string
+          format: date-time
+
+    FocusSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        clientSessionId:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        workSessionId:
+          type: [string, 'null']
+          format: uuid
+        targetMinutes:
+          type: integer
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, COMPLETED, CANCELLED, INTERRUPTED]
+        result:
+          type: string
+          enum: [PENDING, MET, NOT_MET, INTERRUPTED]
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: [string, 'null']
+          format: date-time
+        foregroundSeconds:
+          type: integer
+        backgroundSeconds:
+          type: integer
+        effectiveSeconds:
+          type: integer
+        note:
+          type: string

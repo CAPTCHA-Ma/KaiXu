@@ -9,7 +9,10 @@ import com.kaixu.data.datasource.local.database.openDesktopDatabase
 class DesktopAppContainer : ViewModel() {
     private val database = openDesktopDatabase()
     val localDataSources = LocalDataSources(database)
-    val graph = AppGraph(source = localDataSources.tasks)
+    val graph = AppGraph(
+        source = localDataSources.tasks,
+        fixedEventSource = localDataSources.fixedEvents,
+    )
 
     override fun onCleared() {
         database.close()

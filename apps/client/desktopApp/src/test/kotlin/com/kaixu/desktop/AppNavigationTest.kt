@@ -31,17 +31,21 @@ class AppNavigationTest {
     private val showApp = mutableStateOf(true)
     private val directory = Files.createTempDirectory("kaixu-navigation-test").toFile()
     private val database = openDesktopDatabase(directory.resolve("navigation.db"))
-    private val source = LocalDataSources(database).tasks
+    private val sources = LocalDataSources(database)
+    private val source = sources.tasks
     private var failNextSave = false
-    private val graph = AppGraph(object : TaskDataSource by source {
-        override suspend fun createTask(title: String): Task {
-            if (failNextSave) {
-                failNextSave = false
-                error("测试保存失败")
+    private val graph = AppGraph(
+        source = object : TaskDataSource by source {
+            override suspend fun createTask(title: String): Task {
+                if (failNextSave) {
+                    failNextSave = false
+                    error("测试保存失败")
+                }
+                return source.createTask(title)
             }
-            return source.createTask(title)
-        }
-    })
+        },
+        fixedEventSource = sources.fixedEvents,
+    )
 
     @After
     fun clearHost() {

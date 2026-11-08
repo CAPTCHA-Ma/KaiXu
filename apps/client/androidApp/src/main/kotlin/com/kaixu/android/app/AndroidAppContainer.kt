@@ -10,7 +10,10 @@ import com.kaixu.data.datasource.local.database.openAndroidDatabase
 class AndroidAppContainer(application: Application) : AndroidViewModel(application) {
     private val database = openAndroidDatabase(application)
     val localDataSources = LocalDataSources(database)
-    val graph = AppGraph(source = localDataSources.tasks)
+    val graph = AppGraph(
+        source = localDataSources.tasks,
+        fixedEventSource = localDataSources.fixedEvents,
+    )
 
     override fun onCleared() {
         database.close()

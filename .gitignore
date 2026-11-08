@@ -36,6 +36,13 @@ signing.properties
 *.swo
 *~
 
+# 本地 AI 工具配置（各人本机使用，不随仓库共享）
+.agents/
+.claude/
+.dsh/
+.opencode/
+.trae/
+
 # VS Code：保留可共享的扩展推荐与运行任务
 !**/.vscode/
 **/.vscode/*

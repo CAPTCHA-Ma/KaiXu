@@ -11,4 +11,6 @@ interface FixedEventDataSource {
     suspend fun deleteEventById(id: String): Boolean
     suspend fun listEventsByWorkspace(workspaceId: String): List<FixedEvent>
     suspend fun listEventsInRange(ownerId: String, start: Long, end: Long): List<FixedEvent>
+
+   // suspend fun listEventsInRangeByWorkspace(ownerId: String, workspaceId: String?, start: Long, end: Long): List<FixedEvent>
 }
