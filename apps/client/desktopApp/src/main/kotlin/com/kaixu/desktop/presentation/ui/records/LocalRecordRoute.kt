@@ -11,24 +11,39 @@ import androidx.compose.ui.unit.dp
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.domain.model.tasks.TaskStatus
+import com.kaixu.domain.model.tasks.Task
+import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSessionStatus
+import com.kaixu.domain.model.workspaces.Workspace
+import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.desktop.presentation.ui.workspaces.localMoment
 import kotlinx.coroutines.CancellationException
 
 enum class RecordKind { TASK, EVENT, SESSION }
 data class LocalRecordTarget(val kind: RecordKind, val id: String)
-private data class RecordDetails(val title: String, val fields: List<Pair<String, String>>)
+private data class RecordDetails(
+    val title: String,
+    val fields: List<Pair<String, String>>,
+    val editableTask: Task? = null,
+    val editableEvent: FixedEvent? = null,
+)
 private data class RecordState(val loading: Boolean = true, val details: RecordDetails? = null, val error: String? = null)
 
-/** 全局任务和工作区入口使用相同的按 ID 读取详情。 */
+private fun canEdit(createdBy: String, workspaceId: String?, workspace: Workspace?): Boolean =
+    createdBy == LOCAL_ACTOR_ID && (workspaceId == null ||
+        (workspace?.ownerUserId == LOCAL_ACTOR_ID && workspace.status == WorkspaceStatus.ACTIVE))
+
+/** 全局和工作区入口共用同一原记录详情和编辑入口。 */
 @Composable
 fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBack: () -> Unit) {
     var retry by remember(target) { mutableIntStateOf(0) }
+    var editing by remember(target) { mutableStateOf(false) }
     val state by produceState(RecordState(), target, retry) {
         value = RecordState()
         try {
             val details = when (target.kind) {
                 RecordKind.TASK -> sources.tasks.findTaskById(target.id)?.let { task ->
+                    val workspace = task.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
                     RecordDetails(task.title, listOfNotNull(
                         task.description?.let { "说明" to it },
                         "状态" to when (task.status) {
@@ -37,17 +52,19 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
                             TaskStatus.COMPLETED -> "已完成"
                         },
                         "截止" to (task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止"),
-                        "所属工作区" to if (task.workspaceId == null) "独立任务" else
-                            (task.workspaceId.let { sources.workspaces.findWorkspaceById(requireNotNull(it))?.name } ?: "关联工作区暂不可用"),
-                    ))
+                        "所属工作区" to (workspace?.name ?: if (task.workspaceId == null) "独立任务" else "关联工作区暂不可用"),
+                    ), editableTask = task.takeIf { canEdit(it.createdBy, it.workspaceId, workspace) })
                 }
                 RecordKind.EVENT -> sources.fixedEvents.findEventById(target.id)?.let { event ->
+                    val workspace = event.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
                     RecordDetails(event.title, listOfNotNull(
                         "开始" to localMoment(event.startsAt), "结束" to localMoment(event.endsAt),
                         event.description?.let { "说明" to it },
-                        "所属工作区" to if (event.workspaceId == null) "独立事件" else
-                            (event.workspaceId.let { sources.workspaces.findWorkspaceById(requireNotNull(it))?.name } ?: "关联工作区暂不可用"),
-                    ))
+                        "所属工作区" to (workspace?.name ?: if (event.workspaceId == null) "独立事件" else "关联工作区暂不可用"),
+                    ), editableEvent = event.takeIf {
+                        canEdit(it.createdBy, it.workspaceId, workspace) &&
+                            it.seriesId == null && it.originalDate == null && !it.isOverride
+                    })
                 }
                 RecordKind.SESSION -> sources.workSessions.findWorkSessionById(target.id)
                     ?.takeIf { it.ownerUserId == LOCAL_ACTOR_ID }?.let { session ->
@@ -82,11 +99,22 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
             state.details == null -> Text("记录已不可用，请返回列表刷新。")
             else -> state.details?.let { details ->
                 Text(details.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("record-title"))
+                if (details.editableTask != null || details.editableEvent != null) {
+                    OutlinedButton(onClick = { editing = true }, modifier = Modifier.testTag("edit-record")) {
+                        Text(if (details.editableTask != null) "编辑任务" else "编辑固定事件")
+                    }
+                }
                 details.fields.forEach { (label, value) ->
                     Text(label, style = MaterialTheme.typography.labelLarge)
                     Text(value)
                 }
             }
         }
+    }
+    if (editing) {
+        val onSaved: () -> Unit = { editing = false; retry++ }
+        val onDismiss: () -> Unit = { editing = false }
+        state.details?.editableTask?.let { TaskRecordEditor(it, sources, onDismiss, onSaved) }
+        state.details?.editableEvent?.let { FixedEventRecordEditor(it, sources, onDismiss, onSaved) }
     }
 }

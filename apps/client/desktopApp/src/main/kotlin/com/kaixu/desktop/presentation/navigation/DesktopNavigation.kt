@@ -2,6 +2,7 @@ package com.kaixu.desktop.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.ui.unit.dp
@@ -25,10 +26,15 @@ import com.kaixu.desktop.presentation.ui.workspaces.currentWorkspaceWindow
 import com.kaixu.desktop.presentation.ui.records.LocalRecordRoute
 import com.kaixu.desktop.presentation.ui.records.LocalRecordTarget
 import com.kaixu.desktop.presentation.ui.records.RecordKind
+import com.kaixu.desktop.presentation.ui.resources.ResourceRecordRoute
+import com.kaixu.desktop.presentation.ui.resources.WorkspaceResourcesSection
+import com.kaixu.desktop.presentation.ui.scheduling.LocalScheduleRoute
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.domain.usecase.workspaces.WorkspaceOverviewUseCase
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceOverviewViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /** 导航层决定显示哪个页面，并为各导航条目取得页面 ViewModel。 */
 @Composable
@@ -39,8 +45,9 @@ fun DesktopNavigation(
     sources: LocalDataSources? = null,
 ) {
     val navController = rememberNavController()
+    val navigationScope = rememberCoroutineScope()
     val current by navController.currentBackStackEntryAsState()
-    val activeSection = if (current?.destination?.route == DesktopDestination.RECORD) {
+    val activeSection = if (current?.destination?.route in listOf(DesktopDestination.RECORD, DesktopDestination.RESOURCE)) {
         navController.previousBackStackEntry?.destination?.route
     } else current?.destination?.route
     val openRecord: (LocalRecordTarget) -> Unit = { target ->
@@ -50,7 +57,12 @@ fun DesktopNavigation(
         if (workspaces != null) {
             Column(Modifier.width(180.dp).fillMaxHeight().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("KaiXu", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(vertical = 20.dp))
-                for ((route, label) in listOf(DesktopDestination.TASK_EDITOR to "任务", DesktopDestination.WORKSPACES to "工作区")) {
+                val sections = buildList {
+                    add(DesktopDestination.TASK_EDITOR to "任务")
+                    if (sources != null) add(DesktopDestination.SCHEDULE to "日程")
+                    add(DesktopDestination.WORKSPACES to "工作区")
+                }
+                for ((route, label) in sections) {
                     NavigationDrawerItem(
                         label = { Text(label) }, selected = activeSection == route,
                         modifier = Modifier.testTag("nav-$route"),
@@ -103,12 +115,37 @@ fun DesktopNavigation(
                             )
                         }
                     } else null
-                    WorkspaceRoute(workspaceViewModel, overviewContent = overviewViewModel?.let { overview ->
-                        { space -> WorkspaceOverviewRoute(space.id, overview, openRecord) }
-                    })
+                    WorkspaceRoute(
+                        workspaceViewModel,
+                        overviewContent = overviewViewModel?.let { overview ->
+                            { space -> WorkspaceOverviewRoute(space.id, overview, openRecord) }
+                        },
+                        resourcesContent = sources?.let { localSources ->
+                            { space, summary, openAll ->
+                                WorkspaceResourcesSection(
+                                    space, localSources,
+                                    onOpenResource = { id ->
+                                        navigationScope.launch(Dispatchers.Main.immediate) {
+                                            navController.navigate("resource/$id") { launchSingleTop = true }
+                                        }
+                                    },
+                                    onOpenAll = openAll, summary = summary,
+                                )
+                            }
+                        },
+                    )
                 }
             }
             if (sources != null) {
+                composable(DesktopDestination.SCHEDULE) {
+                    LocalScheduleRoute(sources.fixedEvents, onOpenEvent = { id ->
+                        openRecord(LocalRecordTarget(RecordKind.EVENT, id))
+                    })
+                }
+                composable(DesktopDestination.RESOURCE) { entry ->
+                    val id = requireNotNull(entry.arguments).read { getString("id") }
+                    ResourceRecordRoute(id, sources, onBack = { navController.popBackStack() })
+                }
                 composable(DesktopDestination.RECORD) { entry ->
                     val target = requireNotNull(entry.arguments).read {
                         LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))

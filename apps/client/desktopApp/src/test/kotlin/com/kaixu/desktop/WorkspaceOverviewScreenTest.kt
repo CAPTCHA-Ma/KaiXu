@@ -23,6 +23,8 @@ import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.data.datasource.local.entity.newLocalId
 import com.kaixu.desktop.app.DesktopApp
+import com.kaixu.desktop.presentation.ui.records.formatEventEditTime
+import com.kaixu.domain.model.resources.ResourceKind
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.tasks.Task
@@ -82,6 +84,12 @@ class WorkspaceOverviewScreenTest {
         }
     }
 
+    private fun awaitTagText(tag: String, text: String) {
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(hasTestTag(tag) and hasText(text)).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     private fun detailScrollPosition(): Float =
         compose.onNodeWithTag("workspace-detail-scroll").fetchSemanticsNode()
             .config[SemanticsProperties.VerticalScrollAxisRange].value()
@@ -92,6 +100,18 @@ class WorkspaceOverviewScreenTest {
         output.parentFile.mkdirs()
         Image.makeFromBitmap(image.asSkiaBitmap()).use {
             output.writeBytes(requireNotNull(it.encodeToData()).bytes)
+        }
+    }
+
+    private fun startApp() {
+        compose.setContent {
+            if (visible.value) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {
+                    Box(Modifier.fillMaxSize()) {
+                        DesktopApp(AppGraph(sources.tasks), localDataSources = sources)
+                    }
+                }
+            }
         }
     }
 
@@ -138,15 +158,7 @@ class WorkspaceOverviewScreenTest {
                 listOf(otherEvent.id, independentEvent.id),
             )
         }
-        compose.setContent {
-            if (visible.value) {
-                CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {
-                    Box(Modifier.fillMaxSize()) {
-                        DesktopApp(AppGraph(sources.tasks), localDataSources = sources)
-                    }
-                }
-            }
-        }
+        startApp()
         awaitEnabled(fixture.task.title)
         click(fixture.task.title)
         awaitTag("record-title")
@@ -171,9 +183,11 @@ class WorkspaceOverviewScreenTest {
         clickTag("overview-task-${fixture.task.id}", scroll = true)
         awaitTag("record-title")
         compose.onNodeWithTag("record-title").assertTextEquals(fixture.task.title)
-        runBlocking {
-            sources.tasks.updateTask(fixture.task.copy(title = "已更新同一任务", description = "更新后的原记录说明"))
-        }
+        clickTag("edit-record")
+        compose.onNodeWithTag("task-edit-title").performTextReplacement("已更新同一任务")
+        compose.onNodeWithTag("task-edit-description").performTextReplacement("更新后的原记录说明")
+        clickTag("task-edit-save")
+        awaitTagText("record-title", "已更新同一任务")
         click("← 返回列表")
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasTestTag("overview-task-${fixture.task.id}") and hasText("已更新同一任务"))
@@ -188,6 +202,18 @@ class WorkspaceOverviewScreenTest {
         awaitTag("record-title")
         compose.onNodeWithTag("record-title").assertTextEquals("数据库研讨")
         compose.onNodeWithText("教室 A").assertExists()
+        clickTag("edit-record")
+        compose.onNodeWithTag("event-edit-title").performTextReplacement("已更新数据库研讨")
+        compose.onNodeWithTag("event-edit-end").performTextReplacement(formatEventEditTime(fixture.event.startsAt))
+        click("保存")
+        awaitTag("event-edit-error")
+        assertEquals(fixture.event, runBlocking { sources.fixedEvents.findEventById(fixture.event.id) })
+        compose.onNodeWithTag("event-edit-end").performTextReplacement(formatEventEditTime(fixture.event.endsAt))
+        click("保存")
+        awaitTag("event-conflict-dialog")
+        assertEquals(fixture.event, runBlocking { sources.fixedEvents.findEventById(fixture.event.id) })
+        click("仍然保存")
+        awaitTagText("record-title", "已更新数据库研讨")
         click("← 返回列表")
         awaitTag("overview-session-${fixture.ownSession.id}")
         awaitEnabled("刷新概览")
@@ -226,6 +252,91 @@ class WorkspaceOverviewScreenTest {
         assertEquals(fixture.courseId, runBlocking { sources.tasks.findTaskById(fixture.task.id)?.workspaceId })
         assertEquals("已更新同一任务", runBlocking { sources.tasks.findTaskById(fixture.task.id)?.title })
         assertEquals(null, runBlocking { sources.tasks.findTaskById(fixture.independentTaskId)?.workspaceId })
+        click("← 返回列表")
+        clickTag("nav-schedule")
+        awaitEnabled("已更新数据库研讨")
+        clickTag("schedule-event-${fixture.event.id}")
+        awaitTagText("record-title", "已更新数据库研讨")
+        val reopened = openDesktopDatabase(directory.resolve("test.db"))
+        try {
+            val persisted = LocalDataSources(reopened)
+            assertEquals(
+                fixture.event.copy(title = "已更新数据库研讨"),
+                runBlocking { persisted.fixedEvents.findEventById(fixture.event.id) },
+            )
+            assertEquals(
+                fixture.task.copy(title = "已更新同一任务", description = "更新后的原记录说明"),
+                runBlocking { persisted.tasks.findTaskById(fixture.task.id) },
+            )
+        } finally {
+            reopened.close()
+        }
+    }
+
+    @Test
+    fun workspaceResourcesSaveOriginalRecordsAndKeepListContext() {
+        val course = runBlocking {
+            val local = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "资料课程")
+            val other = sources.workspaces.createWorkspace(WorkspaceKind.PROJECT, "其他工作区")
+            repeat(3) { index ->
+                sources.resources.createResource(local.id, "原有资料 ${index + 1}", null, ResourceKind.TEXT, textContent = "正文")
+            }
+            sources.resources.createResource(other.id, "其他工作区资料", null, ResourceKind.TEXT, textContent = "隔离")
+            local
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        awaitEnabled("刷新概览")
+        awaitTagText("resource-count", "资料 · 3")
+        compose.onNodeWithTag("workspace-detail-scroll")
+            .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 10_000f) }
+        compose.onNodeWithText("全部资料").assertIsDisplayed()
+        click("全部资料")
+        awaitTag("resource-search")
+        compose.onNodeWithTag("resource-search").performTextInput("复验")
+        clickTag("resource-create", scroll = true)
+        compose.onNodeWithTag("resource-name").performTextInput("复验资料")
+        compose.onNodeWithTag("resource-url").performTextInput("file:///local.txt")
+        clickTag("resource-save")
+        awaitTag("resource-save-error")
+        assertEquals(3, runBlocking { sources.resources.listResourcesByWorkspace(course.id).size })
+        compose.onNodeWithTag("resource-url").performTextReplacement("https://example.org/notes")
+        clickTag("resource-save")
+        awaitTag("resource-record-url")
+        compose.onNodeWithTag("resource-record-url").assertTextEquals("https://example.org/notes")
+        val saved = runBlocking { sources.resources.listResourcesByWorkspace(course.id).single { it.name == "复验资料" } }
+
+        clickTag("resource-edit")
+        clickTag("resource-kind-TEXT")
+        compose.onNodeWithTag("resource-name").performTextReplacement("复验资料已更新")
+        compose.onNodeWithTag("resource-text").performTextInput("编辑后的资料正文")
+        clickTag("resource-save")
+        awaitTag("resource-record-text")
+        compose.onNodeWithTag("resource-record-text").assertTextEquals("编辑后的资料正文")
+        click("← 返回资料列表")
+        awaitTagText("resource-${saved.id}", "复验资料已更新")
+        compose.onNodeWithTag("resource-search").assertTextContains("复验")
+        compose.onNodeWithTag("resource-${saved.id}").assertTextContains("复验资料已更新")
+        compose.onNodeWithText("其他工作区资料").assertDoesNotExist()
+        click("概览")
+        awaitTagText("resource-count", "资料 · 4")
+        val records = runBlocking { sources.resources.listResourcesByWorkspace(course.id) }
+        assertEquals(4, records.size)
+        compose.onNodeWithTag("resource-count").assertTextEquals("资料 · 4")
+        compose.onNodeWithTag("resource-${records.last().id}").assertDoesNotExist()
+        clickTag("resource-${saved.id}", scroll = true)
+        awaitTag("resource-record-text")
+        compose.onNodeWithTag("resource-record-title").assertTextEquals("复验资料已更新")
+        screenshot("overview-resource")
+        val reopened = openDesktopDatabase(directory.resolve("test.db"))
+        try {
+            assertEquals(records.single { it.id == saved.id },
+                runBlocking { LocalDataSources(reopened).resources.findResourceById(saved.id) })
+        } finally {
+            reopened.close()
+        }
     }
 }
 
