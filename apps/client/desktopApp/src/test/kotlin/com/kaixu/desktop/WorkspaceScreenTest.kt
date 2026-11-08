@@ -28,6 +28,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 class WorkspaceScreenTest {
     @get:Rule val compose = createComposeRule()
@@ -153,6 +154,36 @@ class WorkspaceScreenTest {
         compose.onNodeWithTag("workspace-name").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         click("取消")
         assertEquals(2, runBlocking { sources.workspaces.listWorkspaces(null).size })
+    }
+
+    @Test fun longDescriptionKeepsSettingsAccessibleAndFullTextEditable() {
+        val description = (1..40).joinToString("\n") { "第 $it 行：需要完整保留的课程说明。" }
+        val course = runBlocking {
+            sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "长说明课程", description)
+        }
+        start()
+        compose.onNodeWithTag("workspace-card-${course.id}").performClick()
+        awaitText("← 返回工作区")
+
+        // 必须先验证可见并实际点击，防止语义回调绕过被长说明挤出屏幕的设置页签。
+        compose.onNodeWithText("设置").assertIsDisplayed().performClick()
+        compose.onNodeWithText("编辑工作区").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("workspace-description").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(description)),
+        )
+        compose.onNodeWithText("取消").performClick()
+        compose.onNodeWithText("概览").assertIsDisplayed().performClick()
+        compose.onNodeWithText(description).assertExists()
+
+        val body = compose.onNodeWithTag("workspace-detail-scroll")
+        body.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+        compose.waitForIdle()
+        val range = body.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        assertTrue("完整说明应能在概览内容区域滚动阅读", range.maxValue() > 0f)
+        assertEquals("概览能滚动至内容末尾", range.maxValue().toDouble(), range.value().toDouble(), 1.0)
+        compose.onNodeWithText("设置").assertIsDisplayed().performClick()
+        compose.onNodeWithText("编辑工作区").assertIsDisplayed()
+        assertEquals(description, runBlocking { sources.workspaces.findWorkspaceById(course.id)?.description })
     }
 }
 

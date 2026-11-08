@@ -10,7 +10,7 @@ Issue #9，依据工作区 SPEC 的 A1–A8、B1–B8。桌面独立本地模式
 .\gradlew.bat -PdesktopOnly=true :shared:jvmTest :desktopApp:test
 ```
 
-2026-11-08 本地验证通过。此功能新增 8 项 ViewModel 测试和 2 项实际 Compose 页面测试。
+2026-11-08 本地验证通过。此功能新增 8 项 ViewModel 测试和 3 项实际 Compose 页面测试。
 
 | 场景 | 验证位置 |
 | --- | --- |
@@ -21,6 +21,7 @@ Issue #9，依据工作区 SPEC 的 A1–A8、B1–B8。桌面独立本地模式
 | 归档确认、归档失败反馈、恢复、已有归档课程关联 | WorkspaceViewModelTest、WorkspaceScreenTest |
 | UI 创建和修改实际落库，重开同一文件后同 ID/状态/关联可读取 | WorkspaceScreenTest 与已有 WorkspaceDatabaseTest |
 | 迟到的读取结果不能覆盖保存成功后的状态 | WorkspaceViewModelTest |
+| 已保存的 40 行说明可以在概览滚动阅读，设置标签可见，编辑框保留全文 | WorkspaceScreenTest |
 
 ## 页面截图
 
