@@ -4,4 +4,5 @@ package com.kaixu.desktop.presentation.navigation
 object DesktopDestination {
     const val TASK_EDITOR = "task-editor"
     const val SETTINGS = "settings"
+    const val WORKSPACES = "workspaces"
 }

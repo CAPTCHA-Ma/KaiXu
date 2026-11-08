@@ -10,8 +10,8 @@ import com.kaixu.desktop.app.DesktopApp
 fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
-        title = "KaiXu 个人任务示例",
-        state = rememberWindowState(width = 900.dp, height = 720.dp),
+        title = "KaiXu",
+        state = rememberWindowState(width = 1180.dp, height = 800.dp),
     ) {
         DesktopApp()
     }
