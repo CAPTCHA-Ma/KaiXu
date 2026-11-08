@@ -4,7 +4,8 @@
 
 桌面与 Android 任务均使用 Room 2.8.4 持久化，重启可读取。
 数据库定义、DAO、Entity 和迁移说明见 [本地数据源](shared/src/commonMain/kotlin/com/kaixu/data/datasource/local/README.md)。
-数据库版本 2 已包含任务、固定事件和个人工作时段表、DAO 和完整 CRUD 数据源接口，页面仍只使用任务标题；尚未实现账号分库与同步。
+当前 Room 结构版本为 4。共享数据库保存任务、固定事件、个人工作时段、工作区及本地资料，桌面端已接入工作区概览与资料编辑。
+客户端功能、依赖或数据库结构发生版本变化时，在同一 PR 更新 [客户端变更记录](../../CHANGELOG.md)。
 
 ## 三个模块的边界
 
