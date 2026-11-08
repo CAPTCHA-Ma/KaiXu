@@ -119,4 +119,23 @@ class TaskEditorViewModelTest {
         advanceUntilIdle()
         assertEquals(120, vm.uiState.value.tasks.single().title.length)
     }
+
+    @Test fun successfulRefreshClearsReadFailureAndPreservesDraft() = runTest {
+        advanceUntilIdle()
+        vm.onTitleChanged("尚未提交的任务")
+        repository.failNextRefresh()
+        vm.refresh()
+        assertTrue(vm.uiState.value.isLoading)
+        advanceUntilIdle()
+        assertEquals("读取失败，请重新打开页面", vm.uiState.value.errorMessage)
+        assertEquals("尚未提交的任务", vm.uiState.value.draftTitle)
+        assertFalse(vm.uiState.value.isLoading)
+
+        vm.refresh()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.errorMessage)
+        assertEquals("尚未提交的任务", vm.uiState.value.draftTitle)
+        assertFalse(vm.uiState.value.isLoading)
+        assertTrue(repository.tasks.value.isEmpty())
+    }
 }

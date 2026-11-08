@@ -9,16 +9,22 @@ import com.kaixu.desktop.presentation.navigation.DesktopNavigation
 import com.kaixu.desktop.presentation.theme.KaiXuTheme
 import com.kaixu.app.di.AppGraph
 import com.kaixu.data.datasource.WorkspaceDataSource
+import com.kaixu.data.datasource.local.LocalDataSources
 
 /** 本端根界面：取得宿主依赖、应用主题，并进入本端导航。 */
 @Composable
-fun DesktopApp(graph: AppGraph? = null, workspaces: WorkspaceDataSource? = null) {
+fun DesktopApp(
+    graph: AppGraph? = null,
+    workspaces: WorkspaceDataSource? = null,
+    localDataSources: LocalDataSources? = null,
+) {
     val container = if (graph == null) viewModel { DesktopAppContainer() } else null
     val activeGraph = graph ?: requireNotNull(container).graph
-    val workspaceSource = workspaces ?: container?.localDataSources?.workspaces
+    val sources = localDataSources ?: container?.localDataSources
+    val workspaceSource = workspaces ?: sources?.workspaces
     KaiXuTheme {
         Surface(Modifier.fillMaxSize()) {
-            DesktopNavigation(graph = activeGraph, workspaces = workspaceSource)
+            DesktopNavigation(graph = activeGraph, workspaces = workspaceSource, sources = sources)
         }
     }
 }

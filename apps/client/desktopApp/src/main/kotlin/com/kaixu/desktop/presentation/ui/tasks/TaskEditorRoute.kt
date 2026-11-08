@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -16,8 +17,10 @@ import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 fun TaskEditorRoute(
     viewModel: TaskEditorViewModel,
     onOpenSettings: () -> Unit,
+    onOpenTask: ((String) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(viewModel) { viewModel.refresh() }
     Column(
         Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -30,6 +33,7 @@ fun TaskEditorRoute(
                 state = state,
                 onTitleChanged = viewModel::onTitleChanged,
                 onSaveClicked = viewModel::onSaveClicked,
+                onOpenTask = onOpenTask,
             )
         }
     }

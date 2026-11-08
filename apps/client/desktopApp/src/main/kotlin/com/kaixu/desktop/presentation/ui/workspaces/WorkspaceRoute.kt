@@ -28,7 +28,10 @@ private val WorkspaceBlue = Color(0xFF3157C8)
 private val WorkspaceBackground = Color(0xFFF5F7FB)
 
 @Composable
-fun WorkspaceRoute(viewModel: WorkspaceViewModel) {
+fun WorkspaceRoute(
+    viewModel: WorkspaceViewModel,
+    overviewContent: (@Composable (Workspace) -> Unit)? = null,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val gridState = rememberLazyGridState()
     MaterialTheme(
@@ -58,7 +61,7 @@ fun WorkspaceRoute(viewModel: WorkspaceViewModel) {
             if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             val selected = state.selectedWorkspace
             if (selected != null) {
-                WorkspaceDetail(selected, state, viewModel, Modifier.weight(1f))
+                WorkspaceDetail(selected, state, viewModel, Modifier.weight(1f), overviewContent)
             } else {
                 WorkspaceDirectory(state, viewModel, gridState, Modifier.weight(1f))
             }
@@ -178,7 +181,10 @@ private fun WorkspaceCard(space: Workspace, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun WorkspaceDetail(space: Workspace, state: WorkspaceUiState, vm: WorkspaceViewModel, modifier: Modifier) {
+private fun WorkspaceDetail(
+    space: Workspace, state: WorkspaceUiState, vm: WorkspaceViewModel, modifier: Modifier,
+    overviewContent: (@Composable (Workspace) -> Unit)?,
+) {
     var tab by rememberSaveable(space.id, state.detailNavigationRevision) { mutableStateOf("概览") }
     val tabs = if (space.kind == WorkspaceKind.COURSE) listOf("概览", "关联项目", "设置") else listOf("概览", "设置")
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -193,11 +199,11 @@ private fun WorkspaceDetail(space: Workspace, state: WorkspaceUiState, vm: Works
         TabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0), containerColor = WorkspaceBackground) {
             tabs.forEach { label -> Tab(selected = tab == label, onClick = { tab = label }, text = { Text(label) }) }
         }
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+        Column(Modifier.weight(1f).fillMaxWidth().testTag("workspace-detail-scroll").verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (tab) {
                 "概览" -> {
-                    Surface(shape = RoundedCornerShape(12.dp)) {
+                    if (overviewContent == null) Surface(shape = RoundedCornerShape(12.dp)) {
                         Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("工作区信息", style = MaterialTheme.typography.titleMedium)
                             Text("类型  ${kindLabel(space.kind)}")
@@ -209,6 +215,14 @@ private fun WorkspaceDetail(space: Workspace, state: WorkspaceUiState, vm: Works
                                         Text("关联课程  ${course.name}" + if (course.status == WorkspaceStatus.ARCHIVED) "（已归档）" else "")
                                     }
                                 } else if (space.linkedCourseId != null) Text("关联课程暂不可读取，请重试加载。")
+                            }
+                        }
+                    }
+                    overviewContent?.invoke(space)
+                    if (overviewContent != null && space.kind == WorkspaceKind.PROJECT) {
+                        state.linkedCourse?.let { course ->
+                            TextButton(onClick = { vm.openWorkspace(course.id) }) {
+                                Text("关联课程  ${course.name}" + if (course.status == WorkspaceStatus.ARCHIVED) "（已归档）" else "")
                             }
                         }
                     }
