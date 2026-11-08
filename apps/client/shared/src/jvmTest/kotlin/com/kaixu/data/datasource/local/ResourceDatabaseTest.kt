@@ -1,5 +1,8 @@
 package com.kaixu.data.datasource.local
 
+import androidx.room.execSQL
+import androidx.room.useWriterConnection
+import androidx.sqlite.SQLiteException
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import com.kaixu.data.datasource.local.database.KaiXuDatabase
@@ -14,7 +17,7 @@ import java.nio.file.Files
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
+import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -93,12 +96,16 @@ class ResourceDatabaseTest {
             val sources = LocalDataSources(database)
             val course = sources.workspaces.createWorkspace(COURSE, "课程")
             val original = sources.resources.createResource(course.id, "原资料", "原说明", LINK, "https://example.com/original")
-            BundledSQLiteDriver().open(file.absolutePath).use {
+            // Install the trigger through Room's writer so setup waits for pending writes.
+            database.useWriterConnection {
                 it.execSQL("CREATE TRIGGER fail_resource_update BEFORE UPDATE ON resources BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END")
             }
-            assertFails { sources.resources.updateResource(original.id, "修改", null, TEXT, null, "正文", original.localRevision) }
+            val rejected = assertFailsWith<SQLiteException> {
+                sources.resources.updateResource(original.id, "修改", null, TEXT, null, "正文", original.localRevision)
+            }
+            assertContains(rejected.message.orEmpty(), "simulated write failure")
             assertEquals(original, sources.resources.findResourceById(original.id))
-            BundledSQLiteDriver().open(file.absolutePath).use { it.execSQL("DROP TRIGGER fail_resource_update") }
+            database.useWriterConnection { it.execSQL("DROP TRIGGER fail_resource_update") }
             val updated = sources.resources.updateResource(original.id, "已修改", null, TEXT, null, "新正文", original.localRevision)
             assertNull(updated.url)
             assertFailsWith<IllegalStateException> { sources.resources.updateResource(original.id, "过期覆盖", null, LINK, original.url, null, original.localRevision) }
