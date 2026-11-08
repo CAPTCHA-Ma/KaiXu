@@ -1,6 +1,7 @@
 package com.kaixu.desktop.presentation.ui.tasks
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -16,6 +17,7 @@ fun TaskEditorScreen(
     state: TaskEditorUiState,
     onTitleChanged: (String) -> Unit,
     onSaveClicked: () -> Unit,
+    onOpenTask: ((String) -> Unit)? = null,
 ) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
@@ -47,7 +49,8 @@ fun TaskEditorScreen(
         }
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.tasks, key = { it.id }) { task ->
-                ListItem(headlineContent = { Text(task.title) },
+                ListItem(modifier = Modifier.clickable(enabled = onOpenTask != null) { onOpenTask?.invoke(task.id) },
+                    headlineContent = { Text(task.title) },
                     supportingContent = { Text("仅自己可见") })
             }
         }

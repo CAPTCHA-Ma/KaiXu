@@ -11,9 +11,17 @@ class TestTaskRepository(private val latencyMillis: Long = 0) : TaskRepository {
     private val records = MutableStateFlow<List<Task>>(emptyList())
     override val tasks = records.asStateFlow()
     private var failNext = false
+    private var failRefresh = false
 
     fun failNextCreate() { failNext = true }
-    override suspend fun refresh() = Unit
+    fun failNextRefresh() { failRefresh = true }
+
+    override suspend fun refresh() {
+        if (failRefresh) {
+            failRefresh = false
+            error("测试读取失败")
+        }
+    }
 
     override suspend fun create(title: String) {
         delay(latencyMillis)

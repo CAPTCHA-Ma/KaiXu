@@ -23,14 +23,25 @@ class TaskEditorViewModel(
     private val _uiState = MutableStateFlow(TaskEditorUiState())
     val uiState = _uiState.asStateFlow()
     private var saveJob: Job? = null
+    private var refreshJob: Job? = null
 
     init {
         viewModelScope.launch {
             observeTasks().collect { tasks -> _uiState.update { it.copy(tasks = tasks) } }
         }
-        viewModelScope.launch {
+        refresh()
+    }
+
+    /** 页面重新进入时重读原记录，保留尚未提交的输入。 */
+    fun refresh() {
+        if (refreshJob?.isActive == true || _uiState.value.isSaving) return
+        _uiState.update { it.copy(isLoading = true) }
+        refreshJob = viewModelScope.launch {
             try {
                 refreshTasks()
+                _uiState.update {
+                    if (it.errorMessage == "读取失败，请重新打开页面") it.copy(errorMessage = null) else it
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
