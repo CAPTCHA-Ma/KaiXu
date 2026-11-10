@@ -23,12 +23,29 @@ class TestTaskRepository(private val latencyMillis: Long = 0) : TaskRepository {
         }
     }
 
-    override suspend fun create(title: String) {
+    override suspend fun create(task: Task): Task {
         delay(latencyMillis)
         if (failNext) {
             failNext = false
             error("测试保存失败")
         }
-        records.value = listOf(Task(id = "test-${records.value.size + 1}", title = title)) + records.value
+        records.value = listOf(task) + records.value
+        return task
     }
+
+    override suspend fun update(task: Task): Boolean {
+        if (records.value.none { it.id == task.id }) return false
+        records.value = records.value.map { if (it.id == task.id) task else it }
+        return true
+    }
+    override suspend fun deleteById(id: String): Boolean {
+        val found = records.value.any { it.id == id }
+        records.value = records.value.filterNot { it.id == id }
+        return found
+    }
+    override suspend fun findById(id: String): Task? = records.value.find { it.id == id }
+    override suspend fun listByWorkspace(workspaceId: String): List<Task> =
+        records.value.filter { it.workspaceId == workspaceId }
+    override suspend fun search(keyword: String): List<Task> =
+        records.value.filter { it.title.contains(keyword, true) || it.description?.contains(keyword, true) == true }
 }

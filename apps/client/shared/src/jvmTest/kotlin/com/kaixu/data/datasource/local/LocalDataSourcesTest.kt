@@ -135,7 +135,9 @@ class LocalDataSourcesTest {
                 assertTrue(sources.workSessions.listWorkSessionsInRange("alice", 0, 1000).isEmpty())
                 assertFailsWith<IllegalArgumentException> { sources.fixedEvents.listEventsInRange("alice", 2, 1) }
                 assertFailsWith<IllegalArgumentException> { sources.workSessions.listWorkSessionsInRange("alice", 1, 1) }
-                assertFailsWith<IllegalArgumentException> { sources.tasks.updateTask(task.copy(workspaceId = "other")) }
+                assertTrue(sources.tasks.updateTask(task.copy(workspaceId = "other", createdBy = "bob")))
+                assertEquals("other", sources.tasks.findTaskById(task.id)?.workspaceId)
+                assertEquals("bob", sources.tasks.findTaskById(task.id)?.createdBy)
                 assertFailsWith<IllegalArgumentException> { sources.tasks.createTask(Task("invalid", " ")) }
                 assertFailsWith<IllegalArgumentException> { sources.fixedEvents.updateEvent(event.copy(endsAt = 0)) }
                 assertFailsWith<IllegalArgumentException> { sources.workSessions.updateWorkSession(session.copy(ownerUserId = "bob")) }

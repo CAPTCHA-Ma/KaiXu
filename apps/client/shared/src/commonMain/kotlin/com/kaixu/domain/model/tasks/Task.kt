@@ -2,7 +2,7 @@ package com.kaixu.domain.model.tasks
 
 /** 供仓储/业务层使用；不包含 Room 或同步存储字段。时间使用 UTC 毫秒。 */
 data class Task(
-    val id: String,
+    val id: String = newTaskId(),
     val title: String,
     val description: String? = null,
     val workspaceId: String? = null,
@@ -21,3 +21,6 @@ data class Task(
 
 enum class TaskStatus { TODO, IN_PROGRESS, COMPLETED }
 enum class TaskPriority { LOW, NORMAL, HIGH }
+
+@OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+private fun newTaskId(): String = kotlin.uuid.Uuid.random().toString()

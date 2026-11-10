@@ -23,7 +23,6 @@ abstract class TaskDao {
     @Transaction
     open suspend fun update(task: TaskEntity): Int {
         val old = findById(task.id) ?: return 0
-        require(task.workspaceId == old.workspaceId && task.createdBy == old.createdBy) { "不能更改任务归属或创建者" }
         require(task.deletedAt == null) { "请使用 deleteById 删除任务" }
         return updateRow(task.copy(createdAt = old.createdAt, updatedAt = currentTimeMillis(), localRevision = old.localRevision + 1))
     }

@@ -34,12 +34,12 @@ class AppNavigationTest {
     private val source = LocalDataSources(database).tasks
     private var failNextSave = false
     private val graph = AppGraph(object : TaskDataSource by source {
-        override suspend fun createTask(title: String): Task {
+        override suspend fun createTask(value: Task): Task {
             if (failNextSave) {
                 failNextSave = false
                 error("测试保存失败")
             }
-            return source.createTask(title)
+            return source.createTask(value)
         }
     })
 
