@@ -6,6 +6,7 @@ import com.kaixu.domain.usecase.tasks.CreateTaskUseCase
 import com.kaixu.domain.usecase.tasks.ObserveTasksUseCase
 import com.kaixu.domain.usecase.tasks.RefreshTasksUseCase
 import com.kaixu.domain.validation.tasks.TaskTitle
+import com.kaixu.domain.model.tasks.Task
 import com.kaixu.presentation.state.tasks.TaskEditorUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -61,7 +62,7 @@ class TaskEditorViewModel(
         val titleToSave = state.draftTitle.trim()
         val job = viewModelScope.launch {
             try {
-                createTask(titleToSave)
+                createTask(Task(title = titleToSave))
                 _uiState.update {
                     it.copy(draftTitle = "", savedMessage = "已创建：$titleToSave")
                 }
