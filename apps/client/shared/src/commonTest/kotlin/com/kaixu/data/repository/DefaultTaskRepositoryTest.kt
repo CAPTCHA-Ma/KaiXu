@@ -2,7 +2,7 @@ package com.kaixu.data.repository
 
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.domain.model.tasks.*
-import com.kaixu.domain.usecase.tasks.*
+import com.kaixu.domain.usecase.tasks.TaskUseCases
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -49,39 +49,41 @@ class DefaultTaskRepositoryTest {
     @Test fun fullCrudAndUseCases() = runTest {
         val source = Source()
         val repo = DefaultTaskRepository(source)
-        val task = CreateTaskUseCase(repo)(fullTask())
+        val useCases = TaskUseCases(repo)
+        val task = useCases.create(fullTask())
         assertEquals(fullTask().copy(title = "Read Kotlin"), task)
-        assertEquals(listOf(task), ObserveTasksUseCase(repo)().value)
+        assertEquals(listOf(task), useCases.observe().value)
         // 改变每个业务字段，id 是更新定位键。
         val edited = task.copy(title = " Done ", description = "新说明", workspaceId = "other",
             createdBy = "carol", assigneeUserId = "dave", status = TaskStatus.COMPLETED,
             priority = TaskPriority.LOW, deadlineDate = null, deadlineAt = 5000,
             estimatedMinutes = 0, blockedNote = "新阻塞", completedAt = 4000,
             sourceExcerpt = "新原文", sourceUrl = "https://example.org")
-        assertTrue(UpdateTaskUseCase(repo)(edited))
+        assertTrue(useCases.update(edited))
         val expected = edited.copy(title = "Done")
-        assertEquals(expected, FindTaskByIdUseCase(repo)(task.id))
+        assertEquals(expected, useCases.findById(task.id))
         assertEquals(listOf(expected), repo.tasks.value)
-        assertTrue(ListTasksByWorkspaceUseCase(repo)("workspace").isEmpty())
-        assertEquals(listOf(expected), ListTasksByWorkspaceUseCase(repo)("other"))
-        assertEquals(listOf(expected), SearchTasksUseCase(repo)(" DONE "))
-        assertEquals(listOf(expected), SearchTasksUseCase(repo)("新说明"))
-        assertTrue(SearchTasksUseCase(repo)("missing").isEmpty())
-        assertEquals(listOf(expected), SearchTasksUseCase(repo)(" "))
+        assertTrue(useCases.listByWorkspace("workspace").isEmpty())
+        assertEquals(listOf(expected), useCases.listByWorkspace("other"))
+        assertEquals(listOf(expected), useCases.search(" DONE "))
+        assertEquals(listOf(expected), useCases.search("新说明"))
+        assertTrue(useCases.search("missing").isEmpty())
+        assertEquals(listOf(expected), useCases.search(" "))
         val cleared = Task(id = task.id, title = "清空", createdBy = "carol")
-        assertTrue(UpdateTaskUseCase(repo)(cleared))
-        RefreshTasksUseCase(repo)()
+        assertTrue(useCases.update(cleared))
+        useCases.refresh()
         assertEquals(listOf(cleared), repo.tasks.value)
-        assertTrue(DeleteTaskUseCase(repo)(task.id))
-        assertNull(FindTaskByIdUseCase(repo)(task.id))
-        assertFalse(DeleteTaskUseCase(repo)(task.id))
-        assertFalse(UpdateTaskUseCase(repo)(cleared))
+        assertTrue(useCases.deleteById(task.id))
+        assertNull(useCases.findById(task.id))
+        assertFalse(useCases.deleteById(task.id))
+        assertFalse(useCases.update(cleared))
         assertTrue(repo.tasks.value.isEmpty())
     }
 
     @Test fun invalidInputNeverReachesDataSource() = runTest {
         val source = Source()
         val repo = DefaultTaskRepository(source)
+        val useCases = TaskUseCases(repo)
         val base = Task(id = "task", title = "valid")
         val invalid = listOf(
             base.copy(id = " "), base.copy(title = " "), base.copy(title = "字".repeat(121)),
@@ -94,15 +96,15 @@ class DefaultTaskRepositoryTest {
         for (task in invalid) {
             assertFailsWith<IllegalArgumentException> { repo.create(task) }
             assertFailsWith<IllegalArgumentException> { repo.update(task) }
-            assertFailsWith<IllegalArgumentException> { CreateTaskUseCase(repo)(task) }
-            assertFailsWith<IllegalArgumentException> { UpdateTaskUseCase(repo)(task) }
+            assertFailsWith<IllegalArgumentException> { useCases.create(task) }
+            assertFailsWith<IllegalArgumentException> { useCases.update(task) }
         }
         assertFailsWith<IllegalArgumentException> { repo.findById("") }
         assertFailsWith<IllegalArgumentException> { repo.deleteById(" ") }
         assertFailsWith<IllegalArgumentException> { repo.listByWorkspace("") }
-        assertFailsWith<IllegalArgumentException> { FindTaskByIdUseCase(repo)("") }
-        assertFailsWith<IllegalArgumentException> { DeleteTaskUseCase(repo)("") }
-        assertFailsWith<IllegalArgumentException> { ListTasksByWorkspaceUseCase(repo)("") }
+        assertFailsWith<IllegalArgumentException> { useCases.findById("") }
+        assertFailsWith<IllegalArgumentException> { useCases.deleteById("") }
+        assertFailsWith<IllegalArgumentException> { useCases.listByWorkspace("") }
         assertEquals(0, source.calls)
         assertTrue(repo.tasks.value.isEmpty())
     }

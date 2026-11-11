@@ -9,26 +9,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-class CreateTaskUseCaseTest {
+class TaskUseCasesTest {
     @Test fun validatesEvenWithoutAViewModel() = runTest {
         val repository = TestTaskRepository()
-        val createTask = CreateTaskUseCase(repository)
-        assertFailsWith<IllegalArgumentException> { createTask(Task(title = "   ")) }
-        assertFailsWith<IllegalArgumentException> { createTask(Task(title = "字".repeat(121))) }
+        val useCases = TaskUseCases(repository)
+        assertFailsWith<IllegalArgumentException> { useCases.create(Task(title = "   ")) }
+        assertFailsWith<IllegalArgumentException> { useCases.create(Task(title = "字".repeat(121))) }
         assertTrue(repository.tasks.value.isEmpty())
     }
 
     @Test fun normalizesTitleForEveryCaller() = runTest {
         val repository = TestTaskRepository()
-        val createTask = CreateTaskUseCase(repository)
-        createTask(Task(title = "  整理课件  "))
+        val useCases = TaskUseCases(repository)
+        useCases.create(Task(title = "  整理课件  "))
         assertEquals("整理课件", repository.tasks.value.single().title)
     }
 
     @Test fun validatesCompleteInputEvenWhenRepositoryDoesNotValidate() = runTest {
         val repository = TestTaskRepository()
-        val create = CreateTaskUseCase(repository)
-        val update = UpdateTaskUseCase(repository)
+        val useCases = TaskUseCases(repository)
         val original = Task(id = "task", title = "valid")
         val invalid = listOf(
             original.copy(id = ""), original.copy(createdBy = ""),
@@ -38,11 +37,11 @@ class CreateTaskUseCaseTest {
             original.copy(status = TaskStatus.COMPLETED), original.copy(completedAt = 1),
         )
         for (task in invalid) {
-            assertFailsWith<IllegalArgumentException> { create(task) }
-            assertFailsWith<IllegalArgumentException> { update(task) }
+            assertFailsWith<IllegalArgumentException> { useCases.create(task) }
+            assertFailsWith<IllegalArgumentException> { useCases.update(task) }
         }
         assertTrue(repository.tasks.value.isEmpty())
         val task = original.copy(title = " valid ", description = "详细内容", deadlineDate = "2028-02-29")
-        assertEquals(task.copy(title = "valid"), create(task))
+        assertEquals(task.copy(title = "valid"), useCases.create(task))
     }
 }

@@ -2,9 +2,7 @@ package com.kaixu.presentation.viewmodel.tasks
 
 import androidx.lifecycle.ViewModelStore
 import com.kaixu.testing.TestTaskRepository
-import com.kaixu.domain.usecase.tasks.CreateTaskUseCase
-import com.kaixu.domain.usecase.tasks.ObserveTasksUseCase
-import com.kaixu.domain.usecase.tasks.RefreshTasksUseCase
+import com.kaixu.domain.usecase.tasks.TaskUseCases
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
@@ -20,9 +18,7 @@ class TaskEditorViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher())
         store = ViewModelStore()
         repository = TestTaskRepository(latencyMillis = 600)
-        vm = TaskEditorViewModel(
-            CreateTaskUseCase(repository), ObserveTasksUseCase(repository), RefreshTasksUseCase(repository),
-        )
+        vm = TaskEditorViewModel(TaskUseCases(repository))
         store.put("editor", vm)
     }
 

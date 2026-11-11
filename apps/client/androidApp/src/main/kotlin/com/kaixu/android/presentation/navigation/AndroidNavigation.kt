@@ -23,7 +23,7 @@ fun AndroidNavigation(graph: AppGraph, modifier: Modifier = Modifier) {
         composable(AndroidDestination.TASK_EDITOR) { entry ->
             // entry 是 NavBackStackEntry：同一条目重组时复用 VM，出栈时清理。
             val editor = viewModel<TaskEditorViewModel>(viewModelStoreOwner = entry) {
-                TaskEditorViewModel(graph.createTask, graph.observeTasks, graph.refreshTasks)
+                TaskEditorViewModel(graph.taskUseCases)
             }
             TaskEditorRoute(
                 viewModel = editor,
