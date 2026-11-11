@@ -139,6 +139,8 @@ private class EventEditFixture {
         override suspend fun listWorkSessions(): List<WorkSession> = error("unused")
         override suspend fun findWorkSessionById(id: String): WorkSession? = error("unused")
         override suspend fun createWorkSession(value: WorkSession): WorkSession = error("unused")
+        override suspend fun createWorkSessions(values: List<WorkSession>): List<WorkSession> = error("unused")
+        override suspend fun listWorkSessionsByOwnerAndTask(ownerId: String, taskId: String): List<WorkSession> = error("unused")
         override suspend fun updateWorkSession(value: WorkSession): Boolean = error("unused")
         override suspend fun deleteWorkSessionById(id: String): Boolean = error("unused")
         override suspend fun listWorkSessionsByTask(taskId: String): List<WorkSession> = error("unused")

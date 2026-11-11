@@ -57,8 +57,7 @@ class ScheduleDatabaseTest {
             val task = TaskEntity(title = "任务")
             db.taskDao().insert(task)
             val session = WorkSessionEntity(taskId = task.id, startsAt = 1000, endsAt = 61000,
-                ownerUserId = "alice", note = "本人说明", focusWindowStart = 1000,
-                focusWindowEnd = 61000, focusTargetSeconds = 60)
+                ownerUserId = "alice", note = "本人说明", focusTargetSeconds = 60)
             db.workSessionDao().insert(session)
             val other = session.copy(id = newLocalId(), ownerUserId = "bob")
             db.workSessionDao().insert(other)
@@ -100,9 +99,8 @@ class ScheduleDatabaseTest {
         assertFailsWith<IllegalArgumentException> { TaskEntity(title = "x", status = TaskStatus.COMPLETED) }
         assertFailsWith<IllegalArgumentException> { FixedEventEntity(title = "x", startsAt = 2, endsAt = 1) }
         assertFailsWith<IllegalArgumentException> { WorkSessionEntity(taskId = null, startsAt = 1, endsAt = 2) }
-        assertFailsWith<IllegalArgumentException> { WorkSessionEntity(taskId = "task", startsAt = 0, endsAt = 1000, focusTargetSeconds = 1) }
-        assertFailsWith<IllegalArgumentException> { WorkSessionEntity(taskId = "task", startsAt = 0, endsAt = 1000,
-            focusWindowStart = 0, focusWindowEnd = 1000, focusTargetSeconds = 2) }
+        assertFailsWith<IllegalArgumentException> { WorkSessionEntity(taskId = "task", startsAt = 0, endsAt = 1000, focusTargetSeconds = 0) }
+        assertEquals(2, WorkSessionEntity(taskId = "task", startsAt = 0, endsAt = 1000, focusTargetSeconds = 2).focusTargetSeconds)
     }
 
     @Test

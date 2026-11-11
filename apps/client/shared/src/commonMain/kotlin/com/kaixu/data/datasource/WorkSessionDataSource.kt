@@ -7,8 +7,11 @@ interface WorkSessionDataSource {
     suspend fun listWorkSessions(): List<WorkSession>
     suspend fun findWorkSessionById(id: String): WorkSession?
     suspend fun createWorkSession(value: WorkSession): WorkSession
+    /** 一个事务保存全部时段；任何一条失败则全部回滚。空列表不写入。 */
+    suspend fun createWorkSessions(values: List<WorkSession>): List<WorkSession>
     suspend fun updateWorkSession(value: WorkSession): Boolean
     suspend fun deleteWorkSessionById(id: String): Boolean
     suspend fun listWorkSessionsByTask(taskId: String): List<WorkSession>
+    suspend fun listWorkSessionsByOwnerAndTask(ownerId: String, taskId: String): List<WorkSession>
     suspend fun listWorkSessionsInRange(ownerId: String, start: Long, end: Long): List<WorkSession>
 }
