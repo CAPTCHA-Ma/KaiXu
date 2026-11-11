@@ -9,3 +9,7 @@ AndroidAppContainer 与 DesktopAppContainer 分别打开本端 Room 数据库，
 同一个宿主容器持有一份 AppGraph，图中同一个仓储供页面使用。AndroidAppContainer、DesktopAppContainer 分别创建各自实例，两端不会共享同一内存对象。
 
 页面 ViewModel 的创建和清理由各端 navigation 管理。退出账号时清理图、取消旧请求、隔离缓存是后续会话工作，不在普通页面重绘时执行。
+
+`LocalSchedulingGraph` 接收同一 `LocalDataSources`、本人身份和所选时区的日期转换函数，
+装配计划时段仓储、实际计时仓储及其 UseCase，并注入共享的本地写事务实现。
+桌面宿主通过 `scheduling` 暴露该图。Android 的远程计时入口尚未接入，不装配本地排期写入图。

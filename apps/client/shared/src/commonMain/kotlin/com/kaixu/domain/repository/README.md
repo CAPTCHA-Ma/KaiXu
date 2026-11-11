@@ -14,4 +14,8 @@
 
 ## 新增接口时
 
+私人排期已提供 `WorkSessionRepository` 和 `FocusRepository`，分别处理计划时段与实际计时聚合。
+接口绑定当前本人身份并返回即时快照，片段不单独提供修改或删除接口。
+`SchedulingTransaction` 由本地组合根实现，支持跨仓储读检查与写入的原子性；不代表跨网络事务。
+
 可增加 WorkspaceRepository.kt、ScheduleRepository.kt。声明方法的输入、返回值和失败语义；实现文件放 data/repository，测试替身放 commonTest。不要为 Android 与桌面复制内容一致的仓储接口。

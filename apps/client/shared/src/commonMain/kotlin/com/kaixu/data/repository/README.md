@@ -8,4 +8,8 @@
 
 ## 适宜存放的文件
 
+`DefaultWorkSessionRepository` 绑定本人身份，协调计划时段、任务、工作区及固定事件数据源。
+`DefaultFocusRepository` 协调本人会话与片段，两者都不保存独立列表缓存。
+上层业务用例通过 `SchedulingTransaction` 在同一 Room 写事务里复查约束、追加片段和变更状态。
+
 可加入 DefaultWorkspaceRepository.kt、DefaultScheduleRepository.kt 等仓储实现；一个实现可协调多个来源。当前 Mutex 仅保护本对象的访问，不能替代跨端版本验证或服务端事务。
