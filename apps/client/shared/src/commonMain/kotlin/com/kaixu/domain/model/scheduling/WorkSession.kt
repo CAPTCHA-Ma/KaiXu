@@ -1,6 +1,6 @@
 package com.kaixu.domain.model.scheduling
 
-/** 供仓储/业务层使用；不包含 Room 或同步存储字段。时间使用 UTC 毫秒。 */
+/** 计划执行任务的时段；实际计时另存 FocusSession / FocusSegment。时间使用 UTC 毫秒。 */
 data class WorkSession(
     val id: String,
     val taskId: String?,
@@ -14,8 +14,7 @@ data class WorkSession(
     val overlapConfirmed: Boolean = false,
     val detachedAt: Long? = null,
     val detachReason: String? = null,
-    val focusWindowStart: Long? = null,
-    val focusWindowEnd: Long? = null,
+    /** 个人计时目标；关联的有效片段均计入，不按计划窗口截断，也不以目标封顶。 */
     val focusTargetSeconds: Long? = null,
 )
 

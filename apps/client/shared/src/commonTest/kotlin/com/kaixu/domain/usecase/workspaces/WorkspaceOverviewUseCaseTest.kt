@@ -158,6 +158,8 @@ class WorkspaceOverviewUseCaseTest {
         override suspend fun listEventsInRange(ownerId: String, start: Long, end: Long): List<FixedEvent> = error("此测试使用工作区事件")
         override suspend fun findWorkSessionById(id: String): WorkSession? = error("此测试无需详情查询")
         override suspend fun createWorkSession(value: WorkSession): WorkSession = error("概览不能创建时段")
+        override suspend fun createWorkSessions(values: List<WorkSession>): List<WorkSession> = error("概览不能创建时段")
+        override suspend fun listWorkSessionsByOwnerAndTask(ownerId: String, taskId: String): List<WorkSession> = error("此测试批量读取时段")
         override suspend fun updateWorkSession(value: WorkSession): Boolean = error("概览不能更新时段")
         override suspend fun deleteWorkSessionById(id: String): Boolean = error("概览不能删除时段")
         override suspend fun listWorkSessionsByTask(taskId: String): List<WorkSession> = error("此测试批量读取时段")

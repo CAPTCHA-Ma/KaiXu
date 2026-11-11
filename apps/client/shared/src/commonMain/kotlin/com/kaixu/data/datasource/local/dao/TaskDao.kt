@@ -38,14 +38,21 @@ abstract class TaskDao {
     @Query("UPDATE work_sessions SET task_id = NULL, stage_id = NULL, detached_at = :at, detach_reason = 'TASK_DELETED', updated_at = :at, local_revision = local_revision + 1 WHERE task_id = :id")
     protected abstract suspend fun detachSessions(id: String, at: Long)
 
+    @Query("""UPDATE focus_sessions SET status = 'INTERRUPTED',
+        ended_at = MAX(:at, started_at, COALESCE((SELECT MAX(ends_at) FROM focus_segments WHERE session_id = focus_sessions.id), started_at)),
+        updated_at = :at WHERE status IN ('ACTIVE','PAUSED')
+        AND work_session_id IN (SELECT id FROM work_sessions WHERE task_id = :id)""")
+    protected abstract suspend fun interruptFocusSessions(id: String, at: Long)
+
     @Query("UPDATE tasks SET deleted_at = :at, updated_at = :at, local_revision = local_revision + 1 WHERE id = :id AND deleted_at IS NULL")
     protected abstract suspend fun markDeleted(id: String, at: Long): Int
 
-    /** 仅处理当前三表的本地删除；阶段、资料与同步队列接入时需扩展事务。 */
+    /** 原子停止活动计时、脱链计划时段并软删除任务；有效计时历史保留。 */
     @Transaction
     open suspend fun deleteById(id: String): Int {
         if (findById(id) == null) return 0
         val at = currentTimeMillis()
+        interruptFocusSessions(id, at)
         detachSessions(id, at)
         return markDeleted(id, at)
     }

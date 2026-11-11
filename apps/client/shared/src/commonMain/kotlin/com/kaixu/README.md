@@ -5,7 +5,7 @@
 | 目录 | 适宜存放的文件 | 当前阅读入口 |
 | --- | --- | --- |
 | `presentation/` | 两端交互一致时复用的 ViewModel、UiState | TaskEditorViewModel、TaskEditorUiState |
-| `domain/` | 业务对象、纯校验、仓储接口和 UseCase | Task、TaskTitle、CreateTaskUseCase |
+| `domain/` | 业务对象、纯校验、仓储接口和 UseCase | Task、TaskTitle、TaskUseCases |
 | `data/` | 仓储实现、数据源、未来的 DTO 和转换 | DefaultTaskRepository、RoomTaskDataSource |
 | `core/` | 多业务使用的网络、会话和平台能力接口 | 当前只有职责说明 |
 | `app/di/` | 创建和连接公共依赖 | AppGraph |

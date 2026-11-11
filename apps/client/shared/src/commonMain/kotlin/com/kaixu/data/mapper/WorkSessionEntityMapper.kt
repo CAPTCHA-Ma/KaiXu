@@ -16,8 +16,6 @@ internal fun WorkSessionEntity.toDomain(): WorkSession = WorkSession(
     overlapConfirmed = overlapConfirmed,
     detachedAt = detachedAt,
     detachReason = detachReason,
-    focusWindowStart = focusWindowStart,
-    focusWindowEnd = focusWindowEnd,
     focusTargetSeconds = focusTargetSeconds,
 )
 
@@ -36,8 +34,6 @@ internal fun WorkSession.toEntity(original: WorkSessionEntity? = null): WorkSess
         overlapConfirmed = overlapConfirmed,
         detachedAt = detachedAt,
         detachReason = detachReason,
-        focusWindowStart = focusWindowStart,
-        focusWindowEnd = focusWindowEnd,
         focusTargetSeconds = focusTargetSeconds,
     )).copy(
         id = id,
@@ -52,7 +48,5 @@ internal fun WorkSession.toEntity(original: WorkSessionEntity? = null): WorkSess
         overlapConfirmed = overlapConfirmed,
         detachedAt = detachedAt,
         detachReason = detachReason,
-        focusWindowStart = focusWindowStart,
-        focusWindowEnd = focusWindowEnd,
         focusTargetSeconds = focusTargetSeconds,
     )

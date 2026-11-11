@@ -27,8 +27,6 @@ data class WorkSessionEntity(
     @ColumnInfo(name = "overlap_confirmed") val overlapConfirmed: Boolean = false,
     @ColumnInfo(name = "detached_at") val detachedAt: Long? = null,
     @ColumnInfo(name = "detach_reason") val detachReason: String? = null,
-    @ColumnInfo(name = "focus_window_start") val focusWindowStart: Long? = null,
-    @ColumnInfo(name = "focus_window_end") val focusWindowEnd: Long? = null,
     @ColumnInfo(name = "focus_target_seconds") val focusTargetSeconds: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long = currentTimeMillis(),
     @ColumnInfo(name = "updated_at") val updatedAt: Long = createdAt,
@@ -42,11 +40,6 @@ data class WorkSessionEntity(
         require(endsAt > startsAt)
         require(if (taskId != null) detachedAt == null && detachReason == null
             else detachedAt != null && !detachReason.isNullOrBlank() && stageId == null)
-        val focusValues = listOf(focusWindowStart, focusWindowEnd, focusTargetSeconds)
-        require(focusValues.all { it == null } || focusValues.all { it != null })
-        if (focusTargetSeconds != null) {
-            require(focusWindowEnd!! > focusWindowStart!!)
-            require(focusTargetSeconds > 0 && focusTargetSeconds <= (focusWindowEnd - focusWindowStart) / 1000)
-        }
+        require(focusTargetSeconds == null || focusTargetSeconds > 0) { "计时目标必须为正数" }
     }
 }

@@ -26,33 +26,33 @@ class TaskRepositoryDatabaseTest {
             openDesktopDatabase(file).let { db ->
                 try {
                     val graph = AppGraph(RoomTaskDataSource(db.taskDao()))
-                    assertEquals(original.copy(title = "original"), graph.createTask(original))
+                    assertEquals(original.copy(title = "original"), graph.taskUseCases.create(original))
                     createdAt = db.taskDao().findById(original.id)!!.createdAt
                     db.workSessionDao().insert(WorkSessionEntity(id = "session", taskId = original.id,
                         stageId = "stage", startsAt = 1000, endsAt = 2000))
-                    assertFails { graph.createTask(original) }
-                    assertEquals(1, graph.observeTasks().value.size)
-                    assertTrue(graph.updateTask(edited))
+                    assertFails { graph.taskUseCases.create(original) }
+                    assertEquals(1, graph.taskUseCases.observe().value.size)
+                    assertTrue(graph.taskUseCases.update(edited))
                     val entity = assertNotNull(db.taskDao().findById(original.id))
                     assertEquals(createdAt, entity.createdAt)
                     assertEquals(1L, entity.localRevision)
-                    assertTrue(graph.listTasksByWorkspace("workspace").isEmpty())
-                    assertEquals(listOf(edited), graph.listTasksByWorkspace("other"))
+                    assertTrue(graph.taskUseCases.listByWorkspace("workspace").isEmpty())
+                    assertEquals(listOf(edited), graph.taskUseCases.listByWorkspace("other"))
                 } finally { db.close() }
             }
             openDesktopDatabase(file).let { db ->
                 try {
                     val graph = AppGraph(RoomTaskDataSource(db.taskDao()))
-                    assertEquals(edited, graph.findTaskById(original.id))
-                    graph.refreshTasks()
-                    assertEquals(listOf(edited), graph.observeTasks().value)
-                    assertEquals(listOf(edited), graph.searchTasks("CHANGED"))
+                    assertEquals(edited, graph.taskUseCases.findById(original.id))
+                    graph.taskUseCases.refresh()
+                    assertEquals(listOf(edited), graph.taskUseCases.observe().value)
+                    assertEquals(listOf(edited), graph.taskUseCases.search("CHANGED"))
                     val cleared = Task(id = original.id, title = "cleared", createdBy = "carol")
-                    assertTrue(graph.updateTask(cleared))
-                    assertEquals(cleared, graph.findTaskById(original.id))
+                    assertTrue(graph.taskUseCases.update(cleared))
+                    assertEquals(cleared, graph.taskUseCases.findById(original.id))
                     assertEquals(createdAt, db.taskDao().findById(original.id)!!.createdAt)
-                    assertTrue(graph.deleteTask(original.id))
-                    assertTrue(graph.observeTasks().value.isEmpty())
+                    assertTrue(graph.taskUseCases.deleteById(original.id))
+                    assertTrue(graph.taskUseCases.observe().value.isEmpty())
                     val session = assertNotNull(db.workSessionDao().findById("session"))
                     assertNull(session.taskId)
                     assertNull(session.stageId)
@@ -62,10 +62,10 @@ class TaskRepositoryDatabaseTest {
             openDesktopDatabase(file).let { db ->
                 try {
                     val graph = AppGraph(RoomTaskDataSource(db.taskDao()))
-                    assertNull(graph.findTaskById(original.id))
-                    assertTrue(graph.searchTasks("").isEmpty())
-                    assertFalse(graph.updateTask(edited))
-                    assertFalse(graph.deleteTask(original.id))
+                    assertNull(graph.taskUseCases.findById(original.id))
+                    assertTrue(graph.taskUseCases.search("").isEmpty())
+                    assertFalse(graph.taskUseCases.update(edited))
+                    assertFalse(graph.taskUseCases.deleteById(original.id))
                 } finally { db.close() }
             }
         } finally { directory.deleteRecursively() }
