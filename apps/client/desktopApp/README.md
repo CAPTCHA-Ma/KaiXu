@@ -62,4 +62,8 @@ Compose 的 `application.javaHome` 同时控制桌面 `run` 和打包工具使�
 
 Linux/macOS 使用 `./gradlew` 代替 `gradlew.bat`，且必须选择本机系统对应的 JBRSDK。Windows 安装包仍需在 Windows 上制作和验收。
 
+GitHub Actions 的 `client-tests.yml` 使用 JBRSDK 21.0.9（`setup-java` 的 `distribution: jetbrains`、`java-package: jdk`），通过 `-PjbrHome` 显式指定桌面测试运行时，并打印 `desktopRuntimeInfo`。Ubuntu 安装 Noto CJK 字体，在固定 96 DPI 的 Xvfb 显示中执行共享 JVM 与桌面测试。动画方向测试采样多个中间帧并参考两段文字各自的静止轮廓，减少单帧时序及字体差异造成的误报；测试仍验证新文字向下进入、旧文字向下退出，以及标题状态与草稿保留。
+
+每次未取消的 CI 运行将 JUnit XML、HTML 测试报告和标题栏截图一起保存到 `client-test-results` artifact，保留 7 天。界面回归失败时可直接查看报告中的断言信息及对应动画帧，无需仅凭控制台的失败行号判断运行时问题。
+
 本次验证（2026-11-12）：Linux 上显式选择现有 JetBrains JBR 21.0.10，`desktopRuntimeInfo` 确认厂商、版本与路径，`:desktopApp:classes` 和现有 `ResourceUrlTest` 通过。未执行 Windows 窗口交互及 MSI/EXE 打包验证；本机 Android Studio 附带 JBR 缺少 `jpackage`。

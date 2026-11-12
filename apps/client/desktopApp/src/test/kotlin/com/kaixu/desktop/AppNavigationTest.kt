@@ -172,11 +172,21 @@ class AppNavigationTest {
                         maxOf(color.red, color.green, color.blue) < .9f
                     }
                 }
-            val restingRows = inkRows(before)
-            val rollingRows = inkRows(rolling)
-            assertTrue("新文字应从上方进入", rollingRows.first() < restingRows.first())
-            assertTrue("原文字应向下退出", rollingRows.last() > restingRows.last())
+            // 字体轮廓和协程首帧调度会随平台变化，检查多个动画中间帧，
+            // 并用两个标题各自静止时的字形边界作参考，避免依赖单帧的像素阈值。
+            val rollingFrames = mutableListOf(rolling)
             screenshot("caption-vertical-roll")
+            repeat(2) { index ->
+                compose.mainClock.advanceTimeBy(48)
+                rollingFrames.add(caption.captureToImage().toPixelMap())
+                screenshot("caption-vertical-roll-${index + 1}")
+            }
+            compose.mainClock.advanceTimeBy(300)
+            val restingRows = inkRows(before) + inkRows(caption.captureToImage().toPixelMap())
+            assertTrue("静止标题应包含可见文字", restingRows.isNotEmpty())
+            val rollingRows = rollingFrames.map(::inkRows).filter { it.isNotEmpty() }
+            assertTrue("新文字应从上方进入", rollingRows.any { it.first() < restingRows.min() })
+            assertTrue("原文字应向下退出", rollingRows.any { it.last() > restingRows.max() })
             caption.assertContentDescriptionEquals("任务")
 
             // 连续打断纵向替换，再在途中点击；旧预览不得覆盖实际页面。
