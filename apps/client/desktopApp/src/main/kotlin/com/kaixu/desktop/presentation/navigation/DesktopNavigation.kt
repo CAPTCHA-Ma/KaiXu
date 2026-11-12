@@ -144,9 +144,7 @@ fun DesktopNavigation(
                 }
                 if (sources != null) {
                     composable(DesktopDestination.SCHEDULE) {
-                        LocalScheduleRoute(sources.fixedEvents, onOpenEvent = { id ->
-                            openRecord(LocalRecordTarget(RecordKind.EVENT, id))
-                        })
+                        LocalScheduleRoute(sources)
                     }
                     composable(DesktopDestination.RESOURCE) { entry ->
                         val id = requireNotNull(entry.arguments).read { getString("id") }

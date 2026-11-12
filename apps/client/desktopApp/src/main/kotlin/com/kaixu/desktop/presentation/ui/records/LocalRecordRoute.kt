@@ -16,6 +16,8 @@ import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSessionStatus
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
+import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
+import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
 import com.kaixu.desktop.presentation.ui.workspaces.localMoment
 import kotlinx.coroutines.CancellationException
 
@@ -61,6 +63,12 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
                         "开始" to localMoment(event.startsAt), "结束" to localMoment(event.endsAt),
                         event.description?.let { "说明" to it },
                         "所属工作区" to (workspace?.name ?: if (event.workspaceId == null) "独立事件" else "关联工作区暂不可用"),
+                        event.repeatWeekdays?.let { days ->
+                            "重复" to days.sorted().joinToString("、") { "周" + "一二三四五六日"[it - 1] } +
+                                "，至 ${event.repeatUntil}"
+                        },
+                        event.reminderOffsetMinutes?.let { "站内提醒" to "提前 $it 分钟" },
+                        (workspace?.status == WorkspaceStatus.ARCHIVED).takeIf { it }?.let { "工作区状态" to "已归档，事件只读" },
                     ), editableEvent = event.takeIf {
                         canEdit(it.createdBy, it.workspaceId, workspace) &&
                             it.seriesId == null && it.originalDate == null && !it.isOverride
@@ -115,6 +123,14 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
         val onSaved: () -> Unit = { editing = false; retry++ }
         val onDismiss: () -> Unit = { editing = false }
         state.details?.editableTask?.let { TaskRecordEditor(it, sources, onDismiss, onSaved) }
-        state.details?.editableEvent?.let { FixedEventRecordEditor(it, sources, onDismiss, onSaved) }
+        state.details?.editableEvent?.let { event ->
+            FixedEventEditorDialog(
+                sources = sources,
+                target = EventEditorTarget(event, event.startsAt, event.endsAt),
+                onDismiss = onDismiss,
+                onSaved = onSaved,
+                onDeleted = onSaved,
+            )
+        }
     }
 }

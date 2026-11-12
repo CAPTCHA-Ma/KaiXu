@@ -186,6 +186,8 @@ class WorkspaceOverviewViewModelTest {
         override suspend fun updateEvent(value: FixedEvent): Boolean = error("概览为只读")
         override suspend fun deleteEventById(id: String): Boolean = error("概览为只读")
         override suspend fun listEventsInRange(ownerId: String, start: Long, end: Long): List<FixedEvent> = error("未使用的读取")
+        override suspend fun listOverridesIncludingDeleted(): List<FixedEvent> = error("概览不展开重复事件")
+        override suspend fun truncateSeriesUntil(id: String, until: String?): Boolean = error("概览为只读")
         override suspend fun findWorkSessionById(id: String): WorkSession? = error("详情由桌面层处理")
         override suspend fun createWorkSession(value: WorkSession): WorkSession = error("概览为只读")
         override suspend fun createWorkSessions(values: List<WorkSession>): List<WorkSession> = error("概览为只读")

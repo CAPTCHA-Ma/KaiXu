@@ -14,7 +14,7 @@ fun AndroidApp() {
     val container = viewModel<AndroidAppContainer>()
     KaiXuTheme {
         Surface(Modifier.fillMaxSize()) {
-            AndroidNavigation(graph = container.graph)
+            AndroidNavigation(graph = container.graph, sources = container.localDataSources)
         }
     }
 }

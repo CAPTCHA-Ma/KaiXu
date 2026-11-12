@@ -12,5 +12,9 @@ interface FixedEventDataSource {
     suspend fun listEventsByWorkspace(workspaceId: String): List<FixedEvent>
     suspend fun listEventsInRange(ownerId: String, start: Long, end: Long): List<FixedEvent>
 
-   // suspend fun listEventsInRangeByWorkspace(ownerId: String, workspaceId: String?, start: Long, end: Long): List<FixedEvent>
+    /** 展开重复序列所需的例外行，包含已取消（软删除）的记录。 */
+    suspend fun listOverridesIncludingDeleted(): List<FixedEvent>
+
+    /** 截断重复序列的结束日期；until 为空表示不再重复。 */
+    suspend fun truncateSeriesUntil(id: String, until: String?): Boolean
 }

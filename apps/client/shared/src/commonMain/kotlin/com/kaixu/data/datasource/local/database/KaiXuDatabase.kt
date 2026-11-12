@@ -24,9 +24,9 @@ import com.kaixu.data.datasource.local.database.migrations.Migration4To5Spec
 @Database(
     entities = [TaskEntity::class, FixedEventEntity::class, WorkSessionEntity::class, WorkspaceEntity::class,
         ResourceEntity::class, FocusSessionEntity::class, FocusSegmentEntity::class],
-    version = 5,
+    version = 6,
     autoMigrations = [AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4),
-        AutoMigration(from = 4, to = 5, spec = Migration4To5Spec::class)],
+        AutoMigration(from = 4, to = 5, spec = Migration4To5Spec::class), AutoMigration(from = 5, to = 6)],
     exportSchema = true,
 )
 @ConstructedBy(KaiXuDatabaseConstructor::class)

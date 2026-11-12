@@ -24,4 +24,7 @@ class LocalSchedulingGraph(sources: LocalDataSources, ownerUserId: String, dateA
     val controlFocusSession = ControlFocusSessionUseCase(workSessionRepository, focusRepository, transaction)
     val recordFocusSegment = RecordFocusSegmentUseCase(focusRepository, transaction)
     val getFocusSummary = GetFocusSummaryUseCase(focusRepository, transaction)
+    val fixedEventSchedule = FixedEventSchedule(
+        sources.fixedEvents, sources.workSessions, sources.workspaces, ownerUserId, transaction,
+    )
 }

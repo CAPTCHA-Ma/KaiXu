@@ -23,7 +23,7 @@ import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.data.datasource.local.entity.newLocalId
 import com.kaixu.desktop.app.DesktopApp
-import com.kaixu.desktop.presentation.ui.records.formatEventEditTime
+import com.kaixu.desktop.presentation.ui.scheduling.formatEventEditTime
 import com.kaixu.domain.model.resources.ResourceKind
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSession
@@ -203,12 +203,12 @@ class WorkspaceOverviewScreenTest {
         compose.onNodeWithTag("record-title").assertTextEquals("数据库研讨")
         compose.onNodeWithText("教室 A").assertExists()
         clickTag("edit-record")
-        compose.onNodeWithTag("event-edit-title").performTextReplacement("已更新数据库研讨")
-        compose.onNodeWithTag("event-edit-end").performTextReplacement(formatEventEditTime(fixture.event.startsAt))
+        compose.onNodeWithTag("event-editor-title").performTextReplacement("已更新数据库研讨")
+        compose.onNodeWithTag("event-editor-end").performTextReplacement(formatEventEditTime(fixture.event.startsAt))
         click("保存")
-        awaitTag("event-edit-error")
+        awaitTag("event-editor-error")
         assertEquals(fixture.event, runBlocking { sources.fixedEvents.findEventById(fixture.event.id) })
-        compose.onNodeWithTag("event-edit-end").performTextReplacement(formatEventEditTime(fixture.event.endsAt))
+        compose.onNodeWithTag("event-editor-end").performTextReplacement(formatEventEditTime(fixture.event.endsAt))
         click("保存")
         awaitTag("event-conflict-dialog")
         assertEquals(fixture.event, runBlocking { sources.fixedEvents.findEventById(fixture.event.id) })
@@ -256,7 +256,9 @@ class WorkspaceOverviewScreenTest {
         clickTag("nav-schedule")
         awaitEnabled("已更新数据库研讨")
         clickTag("schedule-event-${fixture.event.id}")
-        awaitTagText("record-title", "已更新数据库研讨")
+        awaitTag("event-editor-dialog")
+        compose.onNodeWithTag("event-editor-title").assertTextContains("已更新数据库研讨")
+        click("取消")
         val reopened = openDesktopDatabase(directory.resolve("test.db"))
         try {
             val persisted = LocalDataSources(reopened)

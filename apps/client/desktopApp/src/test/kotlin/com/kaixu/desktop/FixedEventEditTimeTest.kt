@@ -1,7 +1,7 @@
 package com.kaixu.desktop
 
-import com.kaixu.desktop.presentation.ui.records.formatEventEditTime
-import com.kaixu.desktop.presentation.ui.records.parseEventEditTime
+import com.kaixu.desktop.presentation.ui.scheduling.formatEventEditTime
+import com.kaixu.desktop.presentation.ui.scheduling.parseEventEditTime
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail

@@ -315,7 +315,7 @@ class AppNavigationTest {
         clickTag("titlebar-back")
         clickTag("nav-schedule")
         compose.onNodeWithTag("titlebar-forward").assertIsNotEnabled()
-        compose.onNodeWithText("固定事件", substring = false).assertExists()
+        compose.onNodeWithTag("schedule-create").assertExists()
         clickTag("titlebar-back")
         compose.onNodeWithTag("workspace-search").assertTextContains("过滤条件")
         clickTag("titlebar-back")

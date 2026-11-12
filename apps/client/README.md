@@ -114,3 +114,11 @@ Android APK 输出于 `androidApp/build/outputs/apk/debug/`；桌面安装包输
 详见 [导航设计](../../docs/03-design/client-navigation.md)、[手工验收步骤](../../tests/acceptance/new-task-demo.md) 和 [双端拆分验证](../../docs/04-testing/client-platform-split-verification.md)。
 
 桌面导航回归运行 ./gradlew -PdesktopOnly=true :desktopApp:test，需要图形环境；Linux 无显示会话可使用 xvfb-run -a。公共逻辑测试不需要图形环境。Android 真机返回、旋转和 Windows 安装行为需另行验收。
+
+## 固定事件与日程（UC08）
+
+桌面端「日程」支持新建、编辑、删除固定事件，可选择关联进行中的工作区或保持独立，保存前检查本人日程重叠并需明确确认；支持每周重复（星期多选 + 结束日期）与站内提醒提前量，编辑重复课次时区分「仅本次」与「本次及后续」。日视图与周视图按日期展开显示，不物化课次。
+
+Android 端「日程」为只读日视图，不提供创建、编辑或删除入口。数据仍来自各端本地库，账号排队同步与在线刷新尚未接入。
+
+实现与验收见 [UC08 验证记录](../../docs/04-testing/uc08-fixed-event-verification.md)。
