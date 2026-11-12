@@ -2,6 +2,7 @@ package com.kaixu.desktop.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -35,6 +36,8 @@ import com.kaixu.domain.usecase.workspaces.WorkspaceOverviewUseCase
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceOverviewViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.kaixu.desktop.presentation.components.DesktopShell
+import com.kaixu.desktop.window.WindowsTitleBarState
 
 /** 导航层决定显示哪个页面，并为各导航条目取得页面 ViewModel。 */
 @Composable
@@ -43,114 +46,126 @@ fun DesktopNavigation(
     modifier: Modifier = Modifier,
     workspaces: WorkspaceDataSource? = null,
     sources: LocalDataSources? = null,
+    titleBar: WindowsTitleBarState = remember { WindowsTitleBarState() },
 ) {
     val navController = rememberNavController()
+    val navigator = remember(navController) { DesktopNavigator(navController) }
+    val history = navigator.history
     val navigationScope = rememberCoroutineScope()
     val current by navController.currentBackStackEntryAsState()
-    val activeSection = if (current?.destination?.route in listOf(DesktopDestination.RECORD, DesktopDestination.RESOURCE)) {
-        navController.previousBackStackEntry?.destination?.route
-    } else current?.destination?.route
+    val activeSection = history.current.section
     val openRecord: (LocalRecordTarget) -> Unit = { target ->
-        navController.navigate("record/${target.kind.name}/${target.id}") { launchSingleTop = true }
+        navigator.openRecord("record/${target.kind.name}/${target.id}")
     }
-    Row(modifier.fillMaxSize()) {
-        if (workspaces != null) {
-            Column(Modifier.width(180.dp).fillMaxHeight().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("KaiXu", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(vertical = 20.dp))
-                val sections = buildList {
-                    add(DesktopDestination.TASK_EDITOR to "任务")
-                    if (sources != null) add(DesktopDestination.SCHEDULE to "日程")
-                    add(DesktopDestination.WORKSPACES to "工作区")
+    DesktopShell(
+        titleBar = titleBar,
+        settingsSelected = current?.destination?.route == DesktopDestination.SETTINGS,
+        canGoBack = history.canGoBack,
+        canGoForward = history.canGoForward,
+        onSettings = navigator::openSettings,
+        onBack = navigator::back,
+        onForward = navigator::forward,
+        modifier = modifier,
+    ) {
+        Row(Modifier.fillMaxSize()) {
+            if (workspaces != null) {
+                Column(Modifier.width(180.dp).fillMaxHeight().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("KaiXu", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(vertical = 20.dp))
+                    val sections = buildList {
+                        add(DesktopDestination.TASK_EDITOR to "任务")
+                        if (sources != null) add(DesktopDestination.SCHEDULE to "日程")
+                        add(DesktopDestination.WORKSPACES to "工作区")
+                    }
+                    for ((route, label) in sections) {
+                        NavigationDrawerItem(
+                            label = { Text(label) }, selected = activeSection == route,
+                            modifier = Modifier.testTag("nav-$route"),
+                            onClick = {
+                                navigator.openSection(route)
+                            },
+                        )
+                    }
                 }
-                for ((route, label) in sections) {
-                    NavigationDrawerItem(
-                        label = { Text(label) }, selected = activeSection == route,
-                        modifier = Modifier.testTag("nav-$route"),
-                        onClick = {
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                VerticalDivider()
+            }
+            NavHost(
+                navController = navController,
+                startDestination = DesktopDestination.TASK_EDITOR,
+                modifier = Modifier.weight(1f),
+            ) {
+                composable(DesktopDestination.TASK_EDITOR) { entry ->
+                    // entry 是 NavBackStackEntry：同一条目重组时复用 VM，出栈时清理。
+                    val editor = viewModel<TaskEditorViewModel>(viewModelStoreOwner = entry) {
+                        TaskEditorViewModel(graph.taskUseCases)
+                    }
+                    TaskEditorRoute(
+                        viewModel = editor,
+                        onOpenTask = if (sources == null) null else { id -> openRecord(LocalRecordTarget(RecordKind.TASK, id)) },
+                        onOpenSettings = navigator::openSettings,
+                    )
+                }
+                composable(DesktopDestination.SETTINGS) {
+                    // 纯说明页没有业务状态，不需要空壳 ViewModel。
+                    SettingsScreen(
+                        onBack = navigator::back,
+                        backLabel = when (history.previous?.route) {
+                            DesktopDestination.TASK_EDITOR -> "返回任务"
+                            DesktopDestination.WORKSPACES -> "返回工作区"
+                            DesktopDestination.SCHEDULE -> "返回日程"
+                            else -> "返回上一页"
                         },
                     )
                 }
-            }
-            VerticalDivider()
-        }
-        NavHost(
-            navController = navController,
-            startDestination = DesktopDestination.TASK_EDITOR,
-            modifier = Modifier.weight(1f),
-        ) {
-            composable(DesktopDestination.TASK_EDITOR) { entry ->
-                // entry 是 NavBackStackEntry：同一条目重组时复用 VM，出栈时清理。
-                val editor = viewModel<TaskEditorViewModel>(viewModelStoreOwner = entry) {
-                    TaskEditorViewModel(graph.taskUseCases)
-                }
-                TaskEditorRoute(
-                    viewModel = editor,
-                    onOpenTask = if (sources == null) null else { id -> openRecord(LocalRecordTarget(RecordKind.TASK, id)) },
-                    onOpenSettings = {
-                        navController.navigate(DesktopDestination.SETTINGS) {
-                            launchSingleTop = true
+                if (workspaces != null) {
+                    composable(DesktopDestination.WORKSPACES) { entry ->
+                        val workspaceViewModel = viewModel<WorkspaceViewModel>(viewModelStoreOwner = entry) {
+                            WorkspaceViewModel(workspaces)
                         }
-                    },
-                )
-            }
-            composable(DesktopDestination.SETTINGS) {
-                // 纯说明页没有业务状态，不需要空壳 ViewModel。
-                SettingsScreen(onBack = { navController.popBackStack() })
-            }
-            if (workspaces != null) {
-                composable(DesktopDestination.WORKSPACES) { entry ->
-                    val workspaceViewModel = viewModel<WorkspaceViewModel>(viewModelStoreOwner = entry) {
-                        WorkspaceViewModel(workspaces)
-                    }
-                    val overviewViewModel = if (sources != null) {
-                        viewModel<WorkspaceOverviewViewModel>(viewModelStoreOwner = entry) {
-                            WorkspaceOverviewViewModel(
-                                WorkspaceOverviewUseCase(sources.tasks, sources.fixedEvents, sources.workSessions),
-                                LOCAL_ACTOR_ID, ::currentWorkspaceWindow,
-                            )
-                        }
-                    } else null
-                    WorkspaceRoute(
-                        workspaceViewModel,
-                        overviewContent = overviewViewModel?.let { overview ->
-                            { space -> WorkspaceOverviewRoute(space.id, overview, openRecord) }
-                        },
-                        resourcesContent = sources?.let { localSources ->
-                            { space, summary, openAll ->
-                                WorkspaceResourcesSection(
-                                    space, localSources,
-                                    onOpenResource = { id ->
-                                        navigationScope.launch(Dispatchers.Main.immediate) {
-                                            navController.navigate("resource/$id") { launchSingleTop = true }
-                                        }
-                                    },
-                                    onOpenAll = openAll, summary = summary,
+                        val overviewViewModel = if (sources != null) {
+                            viewModel<WorkspaceOverviewViewModel>(viewModelStoreOwner = entry) {
+                                WorkspaceOverviewViewModel(
+                                    WorkspaceOverviewUseCase(sources.tasks, sources.fixedEvents, sources.workSessions),
+                                    LOCAL_ACTOR_ID, ::currentWorkspaceWindow,
                                 )
                             }
-                        },
-                    )
-                }
-            }
-            if (sources != null) {
-                composable(DesktopDestination.SCHEDULE) {
-                    LocalScheduleRoute(sources.fixedEvents, onOpenEvent = { id ->
-                        openRecord(LocalRecordTarget(RecordKind.EVENT, id))
-                    })
-                }
-                composable(DesktopDestination.RESOURCE) { entry ->
-                    val id = requireNotNull(entry.arguments).read { getString("id") }
-                    ResourceRecordRoute(id, sources, onBack = { navController.popBackStack() })
-                }
-                composable(DesktopDestination.RECORD) { entry ->
-                    val target = requireNotNull(entry.arguments).read {
-                        LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
+                        } else null
+                        WorkspaceRoute(
+                            workspaceViewModel,
+                            overviewContent = overviewViewModel?.let { overview ->
+                                { space -> WorkspaceOverviewRoute(space.id, overview, openRecord) }
+                            },
+                            resourcesContent = sources?.let { localSources ->
+                                { space, summary, openAll ->
+                                    WorkspaceResourcesSection(
+                                        space, localSources,
+                                        onOpenResource = { id ->
+                                            navigationScope.launch(Dispatchers.Main.immediate) {
+                                                navigator.openRecord("resource/$id")
+                                            }
+                                        },
+                                        onOpenAll = openAll, summary = summary,
+                                    )
+                                }
+                            },
+                        )
                     }
-                    LocalRecordRoute(target, sources, onBack = { navController.popBackStack() })
+                }
+                if (sources != null) {
+                    composable(DesktopDestination.SCHEDULE) {
+                        LocalScheduleRoute(sources.fixedEvents, onOpenEvent = { id ->
+                            openRecord(LocalRecordTarget(RecordKind.EVENT, id))
+                        })
+                    }
+                    composable(DesktopDestination.RESOURCE) { entry ->
+                        val id = requireNotNull(entry.arguments).read { getString("id") }
+                        ResourceRecordRoute(id, sources, onBack = navigator::back)
+                    }
+                    composable(DesktopDestination.RECORD) { entry ->
+                        val target = requireNotNull(entry.arguments).read {
+                            LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
+                        }
+                        LocalRecordRoute(target, sources, onBack = navigator::back)
+                    }
                 }
             }
         }

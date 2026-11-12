@@ -21,7 +21,7 @@ SRS 5.7 节表 13 对本端的主要规划为：工作区组织、完整任务�
 
 ## 使用 JBR 21（不引入 Jewel）
 
-桌面启动、桌面测试和打包支持使用指定的 JetBrains Runtime。当前只切换运行环境，未接入 JBR API、自定义标题栏或 Jewel，窗口外观保持现状。
+桌面启动、桌面测试和打包支持使用指定的 JetBrains Runtime。Windows 窗口已接入 JBR API 自定义标题栏，不使用 Jewel。标题栏布局、导航规则与 Windows 验收步骤见 [桌面标题栏说明](../../../docs/03-design/desktop-titlebar.md)。
 
 1. 从 [JetBrains 官方发行页](https://github.com/JetBrains/JetBrainsRuntime/releases) 下载与本机系统、架构匹配的 **JBRSDK 21**，优先选择不附带 JCEF 的普通版本。Windows 常用 `windows-x64`；不要下载仅运行时的 `jbr` 或 `fastdebug` 包。
 2. 解压到固定目录，确认根目录包含 `release`，且 `bin` 下包含 `java`、`javac`、`jlink`、`jpackage`（Windows 为 `.exe`）。Android Studio 自带 JBR 可能缺少打包工具，可用于启动验证，但完整打包应使用 JBRSDK。

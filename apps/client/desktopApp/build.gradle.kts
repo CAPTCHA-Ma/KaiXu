@@ -27,6 +27,7 @@ val configuredJbrHome = providers.gradleProperty("jbrHome")
     }
 
 dependencies {
+    implementation(libs.jbr.api)
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
