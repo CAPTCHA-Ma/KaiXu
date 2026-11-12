@@ -3,6 +3,7 @@ package com.kaixu.data.datasource.local
 import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.TaskEntity
 import com.kaixu.data.repository.DefaultTaskRepository
+import com.kaixu.domain.model.tasks.Task
 import java.nio.file.Files
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -20,7 +21,7 @@ class RoomDatabaseTest {
             val id = openDesktopDatabase(file).let { database ->
                 try {
                     val repository = DefaultTaskRepository(RoomTaskDataSource(database.taskDao()))
-                    repository.create("重启后仍保留")
+                    repository.create(Task(title = "重启后仍保留"))
                     repository.tasks.value.single().id
                 } finally {
                     database.close()
@@ -32,7 +33,7 @@ class RoomDatabaseTest {
                 repository.refresh()
                 assertEquals(id, repository.tasks.value.single().id)
                 assertEquals("重启后仍保留", repository.tasks.value.single().title)
-                repository.create("新任务")
+                repository.create(Task(title = "新任务"))
                 assertEquals(2, repository.tasks.value.size)
                 assertTrue(repository.tasks.value.first().id != id)
             } finally {

@@ -21,9 +21,17 @@ class RoomWorkSessionDataSource(private val dao: WorkSessionDao) : WorkSessionDa
         return dao.update(value.toEntity(original)) == 1
     }
 
+    override suspend fun createWorkSessions(values: List<WorkSession>): List<WorkSession> {
+        val entities = values.map { it.toEntity() }
+        dao.insertAll(entities)
+        return entities.map { it.toDomain() }
+    }
+
     override suspend fun deleteWorkSessionById(id: String): Boolean = dao.deleteById(id) == 1
     override suspend fun listWorkSessionsByTask(taskId: String): List<WorkSession> =
         dao.listByTask(taskId).map { it.toDomain() }
+    override suspend fun listWorkSessionsByOwnerAndTask(ownerId: String, taskId: String): List<WorkSession> =
+        dao.listByOwnerAndTask(ownerId, taskId).map { it.toDomain() }
     override suspend fun listWorkSessionsInRange(ownerId: String, start: Long, end: Long): List<WorkSession> =
         dao.listInRange(ownerId, start, end).map { it.toDomain() }
 }

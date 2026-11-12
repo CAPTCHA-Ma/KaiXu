@@ -2,9 +2,10 @@
 
 TaskDataSource 声明任务的完整 CRUD、按 ID 查询和工作区筛选，并保留 createTask(title) 快捷创建。
 FixedEventDataSource 和 WorkSessionDataSource 分别声明固定事件与工作时段的访问能力。
-三个接口均返回领域对象，不把 Room Entity 交给业务层。
+FocusDataSource 提供实际计时会话的存取、有效片段追加与累计时间查询。
+上述接口均返回领域对象，不把 Room Entity 交给业务层。
 
-local/ 提供 RoomTaskDataSource、RoomFixedEventDataSource、RoomWorkSessionDataSource，
+local/ 提供 RoomTaskDataSource、RoomFixedEventDataSource、RoomWorkSessionDataSource、RoomFocusDataSource，
 由 LocalDataSources(database) 统一装配。两端宿主打开本端数据库并将任务数据源注入 AppGraph。
 AppGraph 没有默认数据源，正式代码中已移除内存数据源。
 

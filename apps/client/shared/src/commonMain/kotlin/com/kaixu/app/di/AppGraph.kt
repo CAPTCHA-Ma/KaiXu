@@ -14,9 +14,7 @@ import com.kaixu.domain.usecase.scheduling.ListFixedEventsInRangeUseCase
 import com.kaixu.domain.usecase.scheduling.ObserveFixedEventsUseCase
 import com.kaixu.domain.usecase.scheduling.RefreshFixedEventsUseCase
 import com.kaixu.domain.usecase.scheduling.UpdateFixedEventUseCase
-import com.kaixu.domain.usecase.tasks.CreateTaskUseCase
-import com.kaixu.domain.usecase.tasks.ObserveTasksUseCase
-import com.kaixu.domain.usecase.tasks.RefreshTasksUseCase
+import com.kaixu.domain.usecase.tasks.TaskUseCases
 
 /** 组合根：平台显式注入数据源，并管理数据库生命周期。 */
 class AppGraph(
@@ -24,9 +22,7 @@ class AppGraph(
     fixedEventSource: FixedEventDataSource,
 ) {
     val taskRepository: TaskRepository = DefaultTaskRepository(source)
-    val createTask = CreateTaskUseCase(taskRepository)
-    val observeTasks = ObserveTasksUseCase(taskRepository)
-    val refreshTasks = RefreshTasksUseCase(taskRepository)
+    val taskUseCases = TaskUseCases(taskRepository)
 
     val fixedEventRepository: FixedEventRepository = DefaultFixedEventRepository(fixedEventSource)
     val observeFixedEvents = ObserveFixedEventsUseCase(fixedEventRepository)

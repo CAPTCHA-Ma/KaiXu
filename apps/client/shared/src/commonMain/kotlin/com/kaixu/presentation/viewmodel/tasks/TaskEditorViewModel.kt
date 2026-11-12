@@ -2,10 +2,9 @@ package com.kaixu.presentation.viewmodel.tasks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kaixu.domain.usecase.tasks.CreateTaskUseCase
-import com.kaixu.domain.usecase.tasks.ObserveTasksUseCase
-import com.kaixu.domain.usecase.tasks.RefreshTasksUseCase
+import com.kaixu.domain.usecase.tasks.TaskUseCases
 import com.kaixu.domain.validation.tasks.TaskTitle
+import com.kaixu.domain.model.tasks.Task
 import com.kaixu.presentation.state.tasks.TaskEditorUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -16,9 +15,7 @@ import kotlinx.coroutines.launch
 
 /** ViewModel：接收事件、调用业务动作、发布状态；不处理存储与网络细节。 */
 class TaskEditorViewModel(
-    private val createTask: CreateTaskUseCase,
-    private val observeTasks: ObserveTasksUseCase,
-    private val refreshTasks: RefreshTasksUseCase,
+    private val taskUseCases: TaskUseCases,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TaskEditorUiState())
     val uiState = _uiState.asStateFlow()
@@ -27,7 +24,7 @@ class TaskEditorViewModel(
 
     init {
         viewModelScope.launch {
-            observeTasks().collect { tasks -> _uiState.update { it.copy(tasks = tasks) } }
+            taskUseCases.observe().collect { tasks -> _uiState.update { it.copy(tasks = tasks) } }
         }
         refresh()
     }
@@ -38,7 +35,7 @@ class TaskEditorViewModel(
         _uiState.update { it.copy(isLoading = true) }
         refreshJob = viewModelScope.launch {
             try {
-                refreshTasks()
+                taskUseCases.refresh()
                 _uiState.update {
                     if (it.errorMessage == "读取失败，请重新打开页面") it.copy(errorMessage = null) else it
                 }
@@ -72,7 +69,7 @@ class TaskEditorViewModel(
         val titleToSave = state.draftTitle.trim()
         val job = viewModelScope.launch {
             try {
-                createTask(titleToSave)
+                taskUseCases.create(Task(title = titleToSave))
                 _uiState.update {
                     it.copy(draftTitle = "", savedMessage = "已创建：$titleToSave")
                 }

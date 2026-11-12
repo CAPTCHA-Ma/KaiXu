@@ -35,13 +35,13 @@ class AppNavigationTest {
     private val source = sources.tasks
     private var failNextSave = false
     private val graph = AppGraph(
-        source = object : TaskDataSource by source {
-            override suspend fun createTask(title: String): Task {
+        object : TaskDataSource by source {
+            override suspend fun createTask(value: Task): Task {
                 if (failNextSave) {
                     failNextSave = false
                     error("测试保存失败")
                 }
-                return source.createTask(title)
+                return source.createTask(value)
             }
         },
         fixedEventSource = sources.fixedEvents,
