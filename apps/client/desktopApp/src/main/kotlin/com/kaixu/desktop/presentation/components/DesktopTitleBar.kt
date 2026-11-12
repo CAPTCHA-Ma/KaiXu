@@ -31,28 +31,37 @@ fun DesktopTitleBar(
     onSettings: () -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
+    currentTitle: String,
+    previewTitle: String?,
+    backTitle: String?,
+    forwardTitle: String?,
+    onPreview: (source: String, title: String?) -> Unit,
 ) {
-    Row(
+    BoxWithConstraints(
         Modifier.fillMaxWidth().height(Colors.Height).background(Colors.Color0)
             .testTag("desktop-titlebar")
             .pointerInput(host) {
                 awaitPointerEventScope {
                     while (true) host.hitTest(awaitPointerEvent(PointerEventPass.Initial))
                 }
-            }
-            .padding(start = host.leftInset, end = host.rightInset),
-        verticalAlignment = Alignment.CenterVertically,
+            },
     ) {
+        // 两边留相等空间，让标题相对整个窗口居中，并避让原生窗口按钮。
+        val safeMargin = maxOf(host.leftInset + 8.dp + Colors.ButtonHeight * 3 + 12.dp, host.rightInset + 8.dp)
+        val captionWidth = (maxWidth - safeMargin * 2).coerceIn(0.dp, 220.dp)
+        DesktopTitleCaption(currentTitle, previewTitle, Modifier.width(captionWidth).align(Alignment.Center))
         Row(
-            Modifier.padding(start = 8.dp)
+            Modifier.align(Alignment.CenterStart).padding(start = host.leftInset + 8.dp)
                 .onGloballyPositioned { host.updateButtonsBounds(it.boundsInRoot()) },
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            TitleBarButton("设置", "titlebar-settings", Glyph.Settings, selected = settingsSelected, onClick = onSettings)
-            TitleBarButton("返回", "titlebar-back", Glyph.Back, enabled = canGoBack, onClick = onBack)
-            TitleBarButton("前进", "titlebar-forward", Glyph.Forward, enabled = canGoForward, onClick = onForward)
+            TitleBarButton("设置", "titlebar-settings", Glyph.Settings, selected = settingsSelected,
+                onClick = onSettings, onPreview = onPreview)
+            TitleBarButton("返回", "titlebar-back", Glyph.Back, enabled = canGoBack,
+                onClick = onBack, previewLabel = backTitle ?: "返回", onPreview = onPreview)
+            TitleBarButton("前进", "titlebar-forward", Glyph.Forward, enabled = canGoForward,
+                onClick = onForward, previewLabel = forwardTitle ?: "前进", onPreview = onPreview)
         }
-        Spacer(Modifier.weight(1f))
     }
 }
 
@@ -66,6 +75,8 @@ private fun TitleBarButton(
     selected: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
+    previewLabel: String = label,
+    onPreview: (source: String, title: String?) -> Unit,
 ) {
     DesktopChromeButton(
         label = label,
@@ -74,6 +85,8 @@ private fun TitleBarButton(
         modifier = Modifier.size(Colors.ButtonHeight),
         selected = selected,
         enabled = enabled,
+        previewLabel = previewLabel,
+        onPreview = onPreview,
     ) { foreground ->
         Canvas(Modifier.size(18.dp)) {
             val unit = size.minDimension / 24f

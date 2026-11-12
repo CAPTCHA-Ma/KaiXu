@@ -30,6 +30,7 @@ fun DesktopSidebar(
     showSchedule: Boolean,
     onOpenSection: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onPreview: (source: String, title: String?) -> Unit = { _, _ -> },
 ) {
     val sections = buildList {
         add(DesktopDestination.TASK_EDITOR to "任务")
@@ -50,6 +51,7 @@ fun DesktopSidebar(
                 onClick = { onOpenSection(route) },
                 modifier = Modifier.size(Colors.SidebarButtonSize),
                 selected = activeSection == route,
+                onPreview = onPreview,
             ) { foreground ->
                 SidebarIcon(route, foreground)
             }

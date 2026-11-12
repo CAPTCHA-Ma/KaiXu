@@ -18,11 +18,19 @@ fun DesktopShell(
     onSettings: () -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
+    currentTitle: String,
+    previewTitle: String?,
+    backTitle: String?,
+    forwardTitle: String?,
+    onPreview: (source: String, title: String?) -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Column(modifier.fillMaxSize()) {
-        DesktopTitleBar(titleBar, settingsSelected, canGoBack, canGoForward, onSettings, onBack, onForward)
+        DesktopTitleBar(
+            titleBar, settingsSelected, canGoBack, canGoForward, onSettings, onBack, onForward,
+            currentTitle, previewTitle, backTitle, forwardTitle, onPreview,
+        )
         Box(Modifier.weight(1f).fillMaxWidth()) { content() }
     }
 }

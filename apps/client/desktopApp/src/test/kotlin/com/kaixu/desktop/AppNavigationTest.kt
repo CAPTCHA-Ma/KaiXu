@@ -5,7 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.graphics.asSkiaBitmap
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -21,6 +23,9 @@ import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.domain.model.tasks.Task
 import java.nio.file.Files
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.jetbrains.skia.Image
@@ -78,6 +83,158 @@ class AppNavigationTest {
         }
         compose.onNodeWithText("模拟下一次保存失败").assertDoesNotExist()
         compose.onNodeWithText("任务保存在本机，重启后可继续查看").assertExists()
+    }
+
+    @Test
+    fun hoveringChromePreviewsWithoutNavigatingAndClickCommitsThePageTitle() {
+        startApp(fullNavigation = true)
+        val caption = compose.onNodeWithTag("titlebar-caption")
+        fun foregroundInk(): Int {
+            val pixels = caption.captureToImage().toPixelMap()
+            return (0 until pixels.width).sumOf { x ->
+                (0 until pixels.height).count { y ->
+                    val color = pixels[x, y]
+                    maxOf(color.red, color.green, color.blue) < .25f
+                }
+            }
+        }
+        caption.assertContentDescriptionEquals("任务")
+        // 禁用的历史按钮不产生预览。
+        compose.onNodeWithTag("titlebar-back").performMouseInput { enter(center) }
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
+        caption.performMouseInput { moveTo(center) }
+
+        compose.onNodeWithTag("titlebar-settings").performMouseInput { moveTo(center) }
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "预览：设置"))
+        caption.assertContentDescriptionEquals("任务")
+        compose.onNodeWithText("任务标题").assertExists()
+        screenshot("caption-preview-settings")
+        caption.performMouseInput { moveTo(center) }
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
+        caption.assertContentDescriptionEquals("任务")
+
+        compose.onNodeWithTag("nav-workspaces").performMouseInput { moveTo(center) }
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "预览：工作区"))
+        clickTag("nav-workspaces")
+        caption.assertContentDescriptionEquals("工作区")
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
+        screenshot("caption-committed-workspaces")
+        val workspaceInk = foregroundInk()
+        caption.performMouseInput { moveTo(center) }
+        compose.onNodeWithTag("titlebar-settings").performMouseInput { moveTo(center) }
+        screenshot("caption-preview-settings-from-workspaces")
+        caption.performMouseInput { moveTo(center) }
+
+        compose.onNodeWithTag("titlebar-back").performMouseInput { moveTo(center) }
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "预览：任务"))
+        clickTag("titlebar-back")
+        caption.assertContentDescriptionEquals("任务")
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
+        caption.performMouseInput { moveTo(center) }
+        // 用独立显示时的字形墨量检查较长的新标题，防止右侧再次被动画裁剪。
+        compose.onNodeWithTag("nav-workspaces").performMouseInput { moveTo(center) }
+        val previewInk = foregroundInk()
+        assertTrue("预览应完整显示工作区三个字", previewInk >= workspaceInk * .9f)
+        screenshot("caption-preview-workspaces")
+        caption.performMouseInput { moveTo(center) }
+    }
+
+    @Test
+    fun quickHoverChangesRollVerticallyAndPreserveTheFadedPageTitle() {
+        startApp(fullNavigation = true)
+        val caption = compose.onNodeWithTag("titlebar-caption")
+        fun pixels(): ByteArray = Image.makeFromBitmap(caption.captureToImage().asSkiaBitmap()).use {
+            requireNotNull(it.encodeToData()).bytes
+        }
+        val restingPixels = pixels()
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.onNodeWithTag("titlebar-settings").performMouseInput { enter(center) }
+            compose.mainClock.advanceTimeBy(400)
+            val heldPixels = pixels()
+            val before = caption.captureToImage().toPixelMap()
+            caption.performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(100)
+            assertArrayEquals("跨越按钮空隙时不应回弹", heldPixels, pixels())
+
+            compose.onNodeWithTag("nav-schedule").performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(96)
+            val rolling = caption.captureToImage().toPixelMap()
+            for (x in 0 until before.width / 2 - 16) {
+                for (y in 0 until before.height) {
+                    org.junit.Assert.assertEquals("左侧页面标题应保持淡出状态", before[x, y], rolling[x, y])
+                }
+            }
+            fun inkRows(pixels: androidx.compose.ui.graphics.PixelMap): List<Int> =
+                (0 until pixels.height).filter { y ->
+                    (pixels.width / 2 until pixels.width).any { x ->
+                        val color = pixels[x, y]
+                        maxOf(color.red, color.green, color.blue) < .9f
+                    }
+                }
+            val restingRows = inkRows(before)
+            val rollingRows = inkRows(rolling)
+            assertTrue("新文字应从上方进入", rollingRows.first() < restingRows.first())
+            assertTrue("原文字应向下退出", rollingRows.last() > restingRows.last())
+            screenshot("caption-vertical-roll")
+            caption.assertContentDescriptionEquals("任务")
+
+            // 连续打断纵向替换，再在途中点击；旧预览不得覆盖实际页面。
+            compose.onNodeWithTag("nav-workspaces").performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(64)
+            compose.onNodeWithTag("nav-schedule").performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(64)
+            clickTag("nav-schedule")
+            compose.mainClock.advanceTimeBy(700)
+            caption.assertContentDescriptionEquals("日程")
+            caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
+
+            clickTag("titlebar-back")
+            compose.mainClock.advanceTimeBy(700)
+            caption.performMouseInput { moveTo(center) }
+            compose.onNodeWithTag("titlebar-settings").performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(400)
+            caption.performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(700)
+            assertArrayEquals("离开超过宽限时间后应恢复页面标题", restingPixels, pixels())
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
+    fun interruptedTitlePreviewRestoresItsPixelsAndClickCanCommitMidAnimation() {
+        startApp(fullNavigation = true)
+        val caption = compose.onNodeWithTag("titlebar-caption")
+        fun pixels(): ByteArray = Image.makeFromBitmap(caption.captureToImage().asSkiaBitmap()).use {
+            requireNotNull(it.encodeToData()).bytes
+        }
+        val restingPixels = pixels()
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.onNodeWithTag("titlebar-settings").performMouseInput { enter(center) }
+            compose.mainClock.advanceTimeBy(160)
+            assertFalse("预览动画应该已改变标题图像", restingPixels.contentEquals(pixels()))
+            screenshot("caption-moving")
+            // 动画中途换预览，然后移开，最终应逐像素恢复当前页面标题。
+            compose.onNodeWithTag("nav-workspaces").performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(80)
+            caption.performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(600)
+            assertArrayEquals(restingPixels, pixels())
+            caption.assertContentDescriptionEquals("任务")
+
+            compose.onNodeWithTag("titlebar-settings").performMouseInput { moveTo(center) }
+            compose.mainClock.advanceTimeBy(160)
+            clickTag("titlebar-settings")
+            compose.mainClock.advanceTimeBy(600)
+            caption.assertContentDescriptionEquals("设置")
+            caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
+            screenshot("caption-committed-settings")
+            caption.performMouseInput { moveTo(center) }
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
     }
 
     @Test

@@ -9,8 +9,12 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,11 +35,21 @@ internal fun DesktopChromeButton(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     enabled: Boolean = true,
+    previewLabel: String = label,
+    onPreview: (source: String, title: String?) -> Unit = { _, _ -> },
     content: @Composable (foreground: Color) -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
     val hovered by interactions.collectIsHoveredAsState()
     val pressed by interactions.collectIsPressedAsState()
+    var previewConsumed by remember { mutableStateOf(false) }
+    val previewCallback by rememberUpdatedState(onPreview)
+    DisposableEffect(hovered, enabled, tag, previewLabel) {
+        if (!hovered) previewConsumed = false
+        val showingPreview = hovered && enabled && !previewConsumed
+        if (showingPreview) previewCallback(tag, previewLabel)
+        onDispose { if (showingPreview) previewCallback(tag, null) }
+    }
     val active = enabled && (selected || hovered || pressed)
     val foreground = (if (enabled && selected) Colors.Color3 else Colors.Color2)
         .copy(alpha = if (enabled) 1f else .35f)
@@ -45,7 +59,12 @@ internal fun DesktopChromeButton(
             .testTag(tag)
             .semantics { contentDescription = label; this.selected = selected }
             .hoverable(interactions, enabled)
-            .clickable(interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+            .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) {
+                // 点击消耗本次预览，鼠标仍停在按钮上时不覆盖已切换的页面标题。
+                previewConsumed = true
+                previewCallback(tag, null)
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         content(foreground)

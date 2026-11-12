@@ -2,7 +2,9 @@ package com.kaixu.desktop.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
@@ -52,6 +54,11 @@ fun DesktopNavigation(
     val navigationScope = rememberCoroutineScope()
     val current by navController.currentBackStackEntryAsState()
     val activeSection = history.current.section
+    var preview by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val onPreview: (String, String?) -> Unit = { source, title ->
+        if (title != null) preview = source to title
+        else if (preview?.first == source) preview = null
+    }
     val openRecord: (LocalRecordTarget) -> Unit = { target ->
         navigator.openRecord("record/${target.kind.name}/${target.id}")
     }
@@ -63,6 +70,11 @@ fun DesktopNavigation(
         onSettings = navigator::openSettings,
         onBack = navigator::back,
         onForward = navigator::forward,
+        currentTitle = history.current.caption,
+        previewTitle = preview?.second,
+        backTitle = history.previous?.caption,
+        forwardTitle = history.next?.caption,
+        onPreview = onPreview,
         modifier = modifier,
     ) {
         Row(Modifier.fillMaxSize()) {
@@ -71,6 +83,7 @@ fun DesktopNavigation(
                     activeSection = activeSection,
                     showSchedule = sources != null,
                     onOpenSection = navigator::openSection,
+                    onPreview = onPreview,
                 )
             }
             NavHost(
@@ -156,3 +169,15 @@ fun DesktopNavigation(
         }
     }
 }
+
+private val DesktopLocation.caption: String
+    get() = when {
+        route == DesktopDestination.TASK_EDITOR -> "任务"
+        route == DesktopDestination.SCHEDULE -> "日程"
+        route == DesktopDestination.WORKSPACES -> "工作区"
+        route == DesktopDestination.SETTINGS -> "设置"
+        route.startsWith("resource/") -> "资源详情"
+        route.startsWith("record/TASK/") -> "任务详情"
+        route.startsWith("record/EVENT/") -> "事件详情"
+        else -> "KaiXu"
+    }
