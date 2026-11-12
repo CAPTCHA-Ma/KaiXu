@@ -26,16 +26,16 @@ import com.kaixu.desktop.presentation.theme.DesktopChromeColors as Colors
 /** 窄版主导航，背景与标题栏连续，页面跳转由外部导航负责。 */
 @Composable
 fun DesktopSidebar(
-    activeSection: String?,
+    activeSection: DesktopDestination.Section?,
     showSchedule: Boolean,
-    onOpenSection: (String) -> Unit,
+    onNavigate: (DesktopDestination) -> Unit,
     modifier: Modifier = Modifier,
-    onPreview: (source: String, title: String?) -> Unit = { _, _ -> },
+    onPreview: (source: String, destination: DesktopDestination?) -> Unit = { _, _ -> },
 ) {
     val sections = buildList {
-        add(DesktopDestination.TASK_EDITOR to "任务")
-        if (showSchedule) add(DesktopDestination.SCHEDULE to "日程")
-        add(DesktopDestination.WORKSPACES to "工作区")
+        add(DesktopDestination.Tasks)
+        if (showSchedule) add(DesktopDestination.Schedule)
+        add(DesktopDestination.Workspaces)
     }
     Column(
         modifier.width(Colors.SidebarWidth).fillMaxHeight()
@@ -44,16 +44,16 @@ fun DesktopSidebar(
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        for ((route, label) in sections) {
-            DesktopChromeButton(
-                label = label,
-                tag = "nav-$route",
-                onClick = { onOpenSection(route) },
+        for (destination in sections) {
+            DesktopNavigationButton(
+                destination = destination,
+                tag = "nav-${destination.route}",
+                onNavigate = onNavigate,
                 modifier = Modifier.size(Colors.SidebarButtonSize),
-                selected = activeSection == route,
+                selected = activeSection == destination,
                 onPreview = onPreview,
             ) { foreground ->
-                SidebarIcon(route, foreground)
+                SidebarIcon(destination, foreground)
             }
         }
     }
@@ -61,15 +61,15 @@ fun DesktopSidebar(
 
 /** 与标题栏保持一致的线框图标；按钮语义仍由外层提供中文名称。 */
 @Composable
-private fun SidebarIcon(route: String, foreground: Color) {
+private fun SidebarIcon(destination: DesktopDestination.Section, foreground: Color) {
     Canvas(Modifier.size(20.dp)) {
         val unit = size.minDimension / 24f
         val stroke = Stroke(1.8f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round)
         fun line(x1: Float, y1: Float, x2: Float, y2: Float) {
             drawLine(foreground, Offset(x1 * unit, y1 * unit), Offset(x2 * unit, y2 * unit), stroke.width, StrokeCap.Round)
         }
-        when (route) {
-            DesktopDestination.TASK_EDITOR -> {
+        when (destination) {
+            DesktopDestination.Tasks -> {
                 drawRoundRect(
                     foreground, Offset(3f * unit, 3f * unit), Size(18f * unit, 18f * unit),
                     CornerRadius(2f * unit), style = stroke,
@@ -84,7 +84,7 @@ private fun SidebarIcon(route: String, foreground: Color) {
                     line(14f, y, 18f, y)
                 }
             }
-            DesktopDestination.SCHEDULE -> {
+            DesktopDestination.Schedule -> {
                 drawRoundRect(
                     foreground, Offset(3f * unit, 5f * unit), Size(18f * unit, 16f * unit),
                     CornerRadius(2f * unit), style = stroke,
@@ -96,7 +96,7 @@ private fun SidebarIcon(route: String, foreground: Color) {
                     drawCircle(foreground, .9f * unit, Offset(x * unit, 15f * unit))
                 }
             }
-            DesktopDestination.WORKSPACES -> {
+            DesktopDestination.Workspaces -> {
                 val folder = Path().apply {
                     moveTo(3f * unit, 6f * unit)
                     lineTo(9f * unit, 6f * unit)

@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import com.kaixu.desktop.presentation.navigation.DesktopDestination
 import com.kaixu.desktop.presentation.theme.DesktopChromeColors as Colors
 
 /** 标题栏和侧栏复用相同的圆角、鼠标反馈与选中状态。 */
@@ -35,8 +36,8 @@ internal fun DesktopChromeButton(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     enabled: Boolean = true,
-    previewLabel: String = label,
-    onPreview: (source: String, title: String?) -> Unit = { _, _ -> },
+    previewDestination: DesktopDestination? = null,
+    onPreview: (source: String, destination: DesktopDestination?) -> Unit = { _, _ -> },
     content: @Composable (foreground: Color) -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
@@ -44,10 +45,10 @@ internal fun DesktopChromeButton(
     val pressed by interactions.collectIsPressedAsState()
     var previewConsumed by remember { mutableStateOf(false) }
     val previewCallback by rememberUpdatedState(onPreview)
-    DisposableEffect(hovered, enabled, tag, previewLabel) {
+    DisposableEffect(hovered, enabled, tag, previewDestination) {
         if (!hovered) previewConsumed = false
-        val showingPreview = hovered && enabled && !previewConsumed
-        if (showingPreview) previewCallback(tag, previewLabel)
+        val showingPreview = hovered && enabled && !previewConsumed && previewDestination != null
+        if (showingPreview) previewCallback(tag, previewDestination)
         onDispose { if (showingPreview) previewCallback(tag, null) }
     }
     val active = enabled && (selected || hovered || pressed)

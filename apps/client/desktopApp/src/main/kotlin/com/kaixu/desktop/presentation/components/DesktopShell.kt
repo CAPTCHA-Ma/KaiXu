@@ -7,29 +7,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.kaixu.desktop.window.WindowsTitleBarState
+import com.kaixu.desktop.presentation.navigation.DesktopDestination
 
 /** 标题栏固定在页面之外；主内容继续由现有导航提供。 */
 @Composable
 fun DesktopShell(
     titleBar: WindowsTitleBarState,
-    settingsSelected: Boolean,
-    canGoBack: Boolean,
-    canGoForward: Boolean,
-    onSettings: () -> Unit,
+    currentDestination: DesktopDestination,
+    previewDestination: DesktopDestination?,
+    backDestination: DesktopDestination?,
+    forwardDestination: DesktopDestination?,
+    onNavigate: (DesktopDestination) -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
-    currentTitle: String,
-    previewTitle: String?,
-    backTitle: String?,
-    forwardTitle: String?,
-    onPreview: (source: String, title: String?) -> Unit,
+    onPreview: (source: String, destination: DesktopDestination?) -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Column(modifier.fillMaxSize()) {
         DesktopTitleBar(
-            titleBar, settingsSelected, canGoBack, canGoForward, onSettings, onBack, onForward,
-            currentTitle, previewTitle, backTitle, forwardTitle, onPreview,
+            host = titleBar,
+            currentDestination = currentDestination,
+            previewDestination = previewDestination,
+            backDestination = backDestination,
+            forwardDestination = forwardDestination,
+            onNavigate = onNavigate,
+            onBack = onBack,
+            onForward = onForward,
+            onPreview = onPreview,
         )
         Box(Modifier.weight(1f).fillMaxWidth()) { content() }
     }

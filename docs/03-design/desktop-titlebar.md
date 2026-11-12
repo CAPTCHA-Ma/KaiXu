@@ -40,6 +40,27 @@ Main → KaiXuWindow（真实窗口、JBR 生命周期）
 
 返回/前进按钮预览其目标页面，禁用按钮与当前页面按钮不产生额外预览。悬停不更改路由或历史，点击后本次悬停被消耗，避免鼠标留在按钮上时覆盖真实页面标题。
 
+## 页面名称与按钮接入规范
+
+`DesktopDestination` 是页面名称及实际路由的唯一来源，例如 `Settings` 定义“设置”，`TaskRecord(id)` 定义“任务详情”及对应记录路由。窗口历史保存目的地对象；当前标题、预览标题和返回/前进目标都读取对象的 `title`，不再通过另一张路由名称表推断。
+
+新增导航按钮使用同一个 `destination` 驱动悬停与点击：
+
+```kotlin
+DesktopNavigationButton(
+    destination = DesktopDestination.Settings,
+    tag = "task-open-settings",
+    onNavigate = onNavigate,
+    onPreview = onPreview,
+    label = "打开设置", // 按钮自身的无障碍文案，不决定标题预览。
+    modifier = Modifier.size(36.dp),
+) { foreground -> /* 绘制按钮内容 */ }
+```
+
+`onNavigate` 由导航层连接 `navigator::open`，`onPreview` 传递 `(source, DesktopDestination?)`，退出或点击时清除目标。接入页面内部按钮时，把这两个回调通过 Route/Screen 传给组件即可，不需要填写页面名称。普通 Material 按钮仍需显式接入悬停回调，不会自动扫描其 `onClick`；目前没有批量改造页面内部按钮。
+
+新增页面时在目的地中声明 `title` 和路由，再登记 NavHost；改名只修改目的地定义。带 ID 的详情使用对应目的地构造器，保留具体记录身份。目前标题为页面类型名称，尚未接入具体任务标题等数据库数据。
+
 ## 导航规则
 
 `DesktopNavigator` 是主页面、设置和记录详情之间跳转的统一入口。左侧导航、顶部设置按钮、页面原有设置入口和详情返回按钮都使用同一份窗口访问历史：
@@ -52,6 +73,8 @@ Main → KaiXuWindow（真实窗口、JBR 生命周期）
 - 历史仅在当前窗口会话内存在，不写入数据库。
 
 ## 验证
+
+2026-11-12 统一页面名称：桌面编译及全部 22 项桌面测试通过，包括现有 8 项导航/动画测试及新的目的地按钮集成测试。新测试使用与页面名不同的按钮文案，依次验证全部八类目的地（含带 ID 的详情）的悬停名称及点击后名称一致，并确认点击传递原目标对象。
 
 2026-11-12 快速悬停切换：Windows / JBRSDK 21.0.9 下桌面编译及全部 8 项 `AppNavigationTest` 通过。新增测试检查跨越按钮空隙 100 ms 时图像不回弹、纵向替换时左侧淡出标题逐像素不变、新旧文字分别出现在上方/下方、连续打断后点击不会残留预览，以及离开超过宽限时间后恢复原标题；检查了纵向替换中间帧截图。
 

@@ -12,7 +12,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.savedstate.read
 import com.kaixu.app.di.AppGraph
 import com.kaixu.desktop.presentation.ui.settings.SettingsScreen
@@ -52,28 +51,28 @@ fun DesktopNavigation(
     val navigator = remember(navController) { DesktopNavigator(navController) }
     val history = navigator.history
     val navigationScope = rememberCoroutineScope()
-    val current by navController.currentBackStackEntryAsState()
     val activeSection = history.current.section
-    var preview by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val onPreview: (String, String?) -> Unit = { source, title ->
-        if (title != null) preview = source to title
+    var preview by remember { mutableStateOf<Pair<String, DesktopDestination>?>(null) }
+    val onPreview: (String, DesktopDestination?) -> Unit = { source, destination ->
+        if (destination != null) preview = source to destination
         else if (preview?.first == source) preview = null
     }
     val openRecord: (LocalRecordTarget) -> Unit = { target ->
-        navigator.openRecord("record/${target.kind.name}/${target.id}")
+        navigator.open(when (target.kind) {
+            RecordKind.TASK -> DesktopDestination.TaskRecord(target.id)
+            RecordKind.EVENT -> DesktopDestination.EventRecord(target.id)
+            RecordKind.SESSION -> DesktopDestination.SessionRecord(target.id)
+        })
     }
     DesktopShell(
         titleBar = titleBar,
-        settingsSelected = current?.destination?.route == DesktopDestination.SETTINGS,
-        canGoBack = history.canGoBack,
-        canGoForward = history.canGoForward,
-        onSettings = navigator::openSettings,
+        currentDestination = history.current.destination,
+        previewDestination = preview?.second,
+        backDestination = history.previous?.destination,
+        forwardDestination = history.next?.destination,
+        onNavigate = navigator::open,
         onBack = navigator::back,
         onForward = navigator::forward,
-        currentTitle = history.current.caption,
-        previewTitle = preview?.second,
-        backTitle = history.previous?.caption,
-        forwardTitle = history.next?.caption,
         onPreview = onPreview,
         modifier = modifier,
     ) {
@@ -82,7 +81,7 @@ fun DesktopNavigation(
                 DesktopSidebar(
                     activeSection = activeSection,
                     showSchedule = sources != null,
-                    onOpenSection = navigator::openSection,
+                    onNavigate = navigator::open,
                     onPreview = onPreview,
                 )
             }
@@ -99,19 +98,14 @@ fun DesktopNavigation(
                     TaskEditorRoute(
                         viewModel = editor,
                         onOpenTask = if (sources == null) null else { id -> openRecord(LocalRecordTarget(RecordKind.TASK, id)) },
-                        onOpenSettings = navigator::openSettings,
+                        onOpenSettings = { navigator.open(DesktopDestination.Settings) },
                     )
                 }
                 composable(DesktopDestination.SETTINGS) {
                     // 纯说明页没有业务状态，不需要空壳 ViewModel。
                     SettingsScreen(
                         onBack = navigator::back,
-                        backLabel = when (history.previous?.route) {
-                            DesktopDestination.TASK_EDITOR -> "返回任务"
-                            DesktopDestination.WORKSPACES -> "返回工作区"
-                            DesktopDestination.SCHEDULE -> "返回日程"
-                            else -> "返回上一页"
-                        },
+                        backLabel = history.previous?.destination?.let { "返回${it.title}" } ?: "返回上一页",
                     )
                 }
                 if (workspaces != null) {
@@ -138,7 +132,7 @@ fun DesktopNavigation(
                                         space, localSources,
                                         onOpenResource = { id ->
                                             navigationScope.launch(Dispatchers.Main.immediate) {
-                                                navigator.openRecord("resource/$id")
+                                                navigator.open(DesktopDestination.ResourceRecord(id))
                                             }
                                         },
                                         onOpenAll = openAll, summary = summary,
@@ -169,15 +163,3 @@ fun DesktopNavigation(
         }
     }
 }
-
-private val DesktopLocation.caption: String
-    get() = when {
-        route == DesktopDestination.TASK_EDITOR -> "任务"
-        route == DesktopDestination.SCHEDULE -> "日程"
-        route == DesktopDestination.WORKSPACES -> "工作区"
-        route == DesktopDestination.SETTINGS -> "设置"
-        route.startsWith("resource/") -> "资源详情"
-        route.startsWith("record/TASK/") -> "任务详情"
-        route.startsWith("record/EVENT/") -> "事件详情"
-        else -> "KaiXu"
-    }
