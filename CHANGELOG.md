@@ -4,7 +4,11 @@
 
 客户端行为、依赖版本或数据库结构发生变化时，在同一个 PR 更新本文件。每条写明日期、涉及范围、改动及原因、升级影响和已完成的验证，并链接到 PR、提交或验收记录。编号只递增，已有编号不改号、不复用。回退或替换时追加条目并引用原编号。数据库升级须同时提交新结构快照、迁移及旧库升级验证。
 
-**下一条编号为 V9。**
+**下一条编号为 V11。**
+
+- **V10 · 2026-11-12 · Windows 自定义标题栏与页面历史**。新增固定高度灰白标题栏及设置、返回、前进按钮，接入 JBR API 1.5.0，保留并设色原生窗口控制按钮；现有主页面、设置与记录详情统一经过窗口访问历史。任务草稿、工作区筛选保留，后退后新跳转清除前进分支；数据库不变，不引入 Jewel。Linux 下完成编译，18 项桌面测试全部通过；Windows 原生窗口和安装包待验收，详见 [设计与验证说明](docs/03-design/desktop-titlebar.md)。
+
+- **V9 · 2026-11-12 · 桌面 JBR 21 运行配置**。新增用户级 `jbrHome` 属性和 `JBR_HOME` 环境变量入口，用于指定桌面启动、桌面测试与打包的 JBR，增加 `desktopRuntimeInfo` 检查命令及本机配置说明。未配置时沿用原 Java 选择方式；不引入 Jewel、JBR API 或数据库升级。Linux 使用 JBR 21.0.10 完成运行时信息检查、桌面编译和现有 `ResourceUrlTest`；Windows 窗口及安装包待验证，见 [桌面配置说明](apps/client/desktopApp/README.md#使用-jbr-21不引入-jewel)。
 
 - **V8 · 2026-11-08 · 本地资料与原记录编辑（Room v3→v4）**。工作区新增链接和文本资料、真实数量、搜索和同 ID 详情。任务及单次固定事件从工作区和全局入口编辑同一条记录，固定事件有重叠确认。为本地资料持久化，Room 自动迁移新增 `resources` 表及索引，旧四张表逐表对比一致。当前没有 v4→v3 降级迁移，回退应用时应使用升级前备份。Windows 上用隔离旧库完成升级、界面保存和重启验收，本地 66 项测试及两项 CI 通过。[PR #17](https://github.com/CAPTCHA-Ma/KaiXu/pull/17) · [提交 efadba5](https://github.com/CAPTCHA-Ma/KaiXu/commit/efadba54d0077eea7f4c45cbb0a023488608972b) · [验收记录](docs/04-testing/workspace-overview-verification.md) · [push CI](https://github.com/CAPTCHA-Ma/KaiXu/actions/runs/42448917819) · [PR CI](https://github.com/CAPTCHA-Ma/KaiXu/actions/runs/42448920734)
 - **V7 · 2026-11-08 · 工作区概览同步长说明修复（Room v3）**。将 V6 纳入 #17，确保启用任务日程聚合后仍可滚动读完整说明并打开设置。Windows 用隔离库验证 40 行说明、任务和日程详情返回，本地 48 项测试及两项 CI 通过。[PR #17](https://github.com/CAPTCHA-Ma/KaiXu/pull/17) · [提交 c9d84e6](https://github.com/CAPTCHA-Ma/KaiXu/commit/c9d84e6c87f23e6596354a025a041ccae8258753)
