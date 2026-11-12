@@ -9,8 +9,10 @@ navigation = "2.9.1"
 room = "2.8.4"
 sqlite = "2.6.2"
 ksp = "2.2.20-2.0.4"
+jbr-api = "1.5.0"
 
 [libraries]
+jbr-api = { module = "org.jetbrains.runtime:jbr-api", version.ref = "jbr-api" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }

@@ -18,3 +18,52 @@ SRS 5.7 节表 13 对本端的主要规划为：工作区组织、完整任务�
 菜单、窗口、托盘、快捷键和系统集成放本模块；JVM 桌面可在 Linux 开发，Windows 安装包及系统行为必须在 Windows 验证。构建命令：在客户端根目录运行 ./gradlew -PdesktopOnly=true :desktopApp:classes；启动使用 :desktopApp:run。
 
 详见 [客户端总览](../README.md) 和 [本端源码说明](src/main/kotlin/com/kaixu/desktop/README.md)。
+
+## 使用 JBR 21（不引入 Jewel）
+
+桌面启动、桌面测试和打包支持使用指定的 JetBrains Runtime。Windows 窗口已接入 JBR API 自定义标题栏，不使用 Jewel。标题栏布局、导航规则与 Windows 验收步骤见 [桌面标题栏说明](../../../docs/03-design/desktop-titlebar.md)。
+
+1. 从 [JetBrains 官方发行页](https://github.com/JetBrains/JetBrainsRuntime/releases) 下载与本机系统、架构匹配的 **JBRSDK 21**，优先选择不附带 JCEF 的普通版本。Windows 常用 `windows-x64`；不要下载仅运行时的 `jbr` 或 `fastdebug` 包。
+2. 解压到固定目录，确认根目录包含 `release`，且 `bin` 下包含 `java`、`javac`、`jlink`、`jpackage`（Windows 为 `.exe`）。Android Studio 自带 JBR 可能缺少打包工具，可用于启动验证，但完整打包应使用 JBRSDK。
+3. 配置本机路径，二选一：用户级 Gradle 属性 `jbrHome`，或环境变量 `JBR_HOME`。属性优先于环境变量。路径必须指向 SDK 根目录，不能指向 `bin`；不要把本机路径写进仓库。
+
+推荐在用户目录的 `.gradle/gradle.properties` 中加入以下一行（Windows 路径使用正斜杠，无需引号）：
+
+```properties
+jbrHome=C:/Dev/Java/jbrsdk-21
+```
+
+也可以在 PowerShell 中为当前终端设置（替换为实际解压路径）：
+
+```powershell
+$env:JBR_HOME = 'C:\Dev\Java\jbrsdk-21'
+```
+
+IDE 中将 Project SDK 和 Gradle JDK 选择为这个 JBRSDK 21，并重新同步 Gradle。设置环境变量时如果 IDE 已经运行，需要重启 IDE 才能读取新值；使用用户级 Gradle 属性则不依赖这一步。推荐通过 Gradle 的 `:desktopApp:run` 启动；直接运行 `Main.kt` 时，须另外确认运行配置的 JRE。
+
+在客户端根目录执行（PowerShell）：
+
+```powershell
+.\gradlew.bat -PdesktopOnly=true :desktopApp:desktopRuntimeInfo
+.\gradlew.bat -PdesktopOnly=true :desktopApp:run
+```
+
+第一条命令应显示预期的 `java.home`、`java.vendor = JetBrains s.r.o.` 和 Java 21 版本。`gradlew --version` 显示的是 Gradle 的 Java，不能替代这项检查。
+
+如需验证打包运行时，在 Windows 上执行：
+
+```powershell
+.\gradlew.bat -PdesktopOnly=true :desktopApp:createDistributable
+.\gradlew.bat -PdesktopOnly=true :desktopApp:runDistributable
+.\gradlew.bat -PdesktopOnly=true :desktopApp:packageMsi
+```
+
+Compose 的 `application.javaHome` 同时控制桌面 `run` 和打包工具使用的 Java，桌面 `Test` 任务也使用同一个显式配置的 JBR。编译目标仍为 Java 21，共享层与 Android 没有新增 JBR 依赖。未提供上述配置时保留原 Java 选择方式，方便现有 CI 和普通 JVM 开发；这意味着尚未强制要求所有环境都使用 JBR。路径、厂商或主版本不符合要求时会给出配置错误。
+
+Linux/macOS 使用 `./gradlew` 代替 `gradlew.bat`，且必须选择本机系统对应的 JBRSDK。Windows 安装包仍需在 Windows 上制作和验收。
+
+GitHub Actions 的 `client-tests.yml` 使用 JBRSDK 21.0.9（`setup-java` 的 `distribution: jetbrains`、`java-package: jdk`），通过 `-PjbrHome` 显式指定桌面测试运行时，并打印 `desktopRuntimeInfo`。Ubuntu 安装 Noto CJK 字体，在固定 96 DPI 的 Xvfb 显示中执行共享 JVM 与桌面测试。动画方向测试采样多个中间帧并参考两段文字各自的静止轮廓，减少单帧时序及字体差异造成的误报；测试仍验证新文字向下进入、旧文字向下退出，以及标题状态与草稿保留。
+
+每次未取消的 CI 运行将 JUnit XML、HTML 测试报告和标题栏截图一起保存到 `client-test-results` artifact，保留 7 天。界面回归失败时可直接查看报告中的断言信息及对应动画帧，无需仅凭控制台的失败行号判断运行时问题。
+
+本次验证（2026-11-12）：Linux 上显式选择现有 JetBrains JBR 21.0.10，`desktopRuntimeInfo` 确认厂商、版本与路径，`:desktopApp:classes` 和现有 `ResourceUrlTest` 通过。未执行 Windows 窗口交互及 MSI/EXE 打包验证；本机 Android Studio 附带 JBR 缺少 `jpackage`。

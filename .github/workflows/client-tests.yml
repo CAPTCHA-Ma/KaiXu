@@ -24,15 +24,32 @@ jobs:
 
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
-          distribution: temurin
-          java-version: '21'
+          distribution: jetbrains
+          java-version: '21.0.9'
+          java-package: jdk
           cache: gradle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare desktop display and Chinese fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth fontconfig fonts-noto-cjk
+          fc-cache -f
+          fc-match 'sans-serif:lang=zh-cn'
 
       - name: Run shared JVM and desktop tests
         working-directory: apps/client
-        run: xvfb-run -a ./gradlew --no-daemon --console=plain -PdesktopOnly=true :shared:jvmTest :desktopApp:test
+        env:
+          KAIXU_SCREENSHOT_DIR: ${{ runner.temp }}/kaixu-ui-screenshots
+        run: |
+          export JBR_HOME="$JAVA_HOME"
+          xvfb-run -a -s '-screen 0 1280x1024x24 -dpi 96' \
+            ./gradlew --no-daemon --console=plain --stacktrace \
+            -PdesktopOnly=true "-PjbrHome=$JBR_HOME" \
+            :desktopApp:desktopRuntimeInfo :shared:jvmTest :desktopApp:test
 
-      - name: Save JUnit results
+      - name: Save test results, reports and screenshots
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -40,4 +57,7 @@ jobs:
           path: |
             apps/client/shared/build/test-results/jvmTest/TEST-*.xml
             apps/client/desktopApp/build/test-results/test/TEST-*.xml
+            apps/client/shared/build/reports/tests/jvmTest/
+            apps/client/desktopApp/build/reports/tests/test/
+            ${{ runner.temp }}/kaixu-ui-screenshots/
           retention-days: 7
