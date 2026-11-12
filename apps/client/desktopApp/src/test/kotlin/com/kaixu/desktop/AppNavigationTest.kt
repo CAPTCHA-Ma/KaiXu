@@ -154,7 +154,7 @@ class AppNavigationTest {
             val heldPixels = pixels()
             val before = caption.captureToImage().toPixelMap()
             caption.performMouseInput { moveTo(center) }
-            compose.mainClock.advanceTimeBy(100)
+            compose.mainClock.advanceTimeBy(220)
             assertArrayEquals("跨越按钮空隙时不应回弹", heldPixels, pixels())
 
             compose.onNodeWithTag("nav-schedule").performMouseInput { moveTo(center) }
@@ -197,6 +197,31 @@ class AppNavigationTest {
             caption.performMouseInput { moveTo(center) }
             compose.mainClock.advanceTimeBy(700)
             assertArrayEquals("离开超过宽限时间后应恢复页面标题", restingPixels, pixels())
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
+    fun longAndShortPreviewTitlesFinishAlignmentWithTheVerticalTransition() {
+        startApp(fullNavigation = true)
+        val caption = compose.onNodeWithTag("titlebar-caption")
+        fun pixels(): ByteArray = Image.makeFromBitmap(caption.captureToImage().asSkiaBitmap()).use {
+            requireNotNull(it.encodeToData()).bytes
+        }
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.onNodeWithTag("titlebar-settings").performMouseInput { enter(center) }
+            compose.mainClock.advanceTimeBy(400)
+            for (tag in listOf("nav-workspaces", "titlebar-settings", "nav-workspaces", "nav-schedule")) {
+                compose.onNodeWithTag(tag).performMouseInput { moveTo(center) }
+                // 给鼠标事件、重组和动画首帧留出调度余量；仍短于旧的两段 220 ms 动画。
+                compose.mainClock.advanceTimeBy(336)
+                val transitionFinished = pixels()
+                compose.mainClock.advanceTimeBy(400)
+                assertArrayEquals("长短标题应在纵向切换后完成对齐：$tag", transitionFinished, pixels())
+            }
+            caption.performMouseInput { moveTo(center) }
         } finally {
             compose.mainClock.autoAdvance = true
         }

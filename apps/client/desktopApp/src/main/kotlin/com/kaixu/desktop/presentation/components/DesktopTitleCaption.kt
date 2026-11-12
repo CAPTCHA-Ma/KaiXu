@@ -39,7 +39,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val HoverExitGraceMillis = 180L
+private const val HoverExitGraceMillis = 260L
 private const val PreviewRollDurationMillis = 220
 private const val PreviewProgress = .72f
 
@@ -75,7 +75,10 @@ internal fun DesktopTitleCaption(
                 previewLayers.add(layer)
                 activeLayer = layer
             }
-            progress.animateTo(if (committing) 1f else PreviewProgress, tween(300, easing = FastOutSlowInEasing))
+            val targetProgress = if (committing) 1f else PreviewProgress
+            if (progress.value != targetProgress) {
+                progress.animateTo(targetProgress, tween(300, easing = FastOutSlowInEasing))
+            }
             if (committing) {
                 restingTitle = target
                 activeLayer = null
@@ -129,7 +132,10 @@ internal fun DesktopTitleCaption(
                 constraints = Constraints(maxWidth = textLimit))
         }
         val widestIncoming = incoming.maxOfOrNull { it.second.size.width } ?: outgoing.size.width
-        val incomingWidth by animateFloatAsState(widestIncoming.toFloat(),
+        // 对齐跟随当前目标；退场的长文字仅用于防止裁剪，不延迟收窄动画。
+        val targetWidth = incoming.firstOrNull { it.first === activeLayer }?.second?.size?.width
+            ?: outgoing.size.width
+        val incomingWidth by animateFloatAsState(targetWidth.toFloat(),
             tween(PreviewRollDurationMillis, easing = FastOutSlowInEasing))
         Canvas(Modifier.fillMaxSize()) {
             val p = progress.value
