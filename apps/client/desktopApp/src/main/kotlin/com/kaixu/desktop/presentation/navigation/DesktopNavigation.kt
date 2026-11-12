@@ -5,9 +5,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -37,6 +34,7 @@ import com.kaixu.presentation.viewmodel.workspaces.WorkspaceOverviewViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.kaixu.desktop.presentation.components.DesktopShell
+import com.kaixu.desktop.presentation.components.DesktopSidebar
 import com.kaixu.desktop.window.WindowsTitleBarState
 
 /** 导航层决定显示哪个页面，并为各导航条目取得页面 ViewModel。 */
@@ -69,24 +67,11 @@ fun DesktopNavigation(
     ) {
         Row(Modifier.fillMaxSize()) {
             if (workspaces != null) {
-                Column(Modifier.width(180.dp).fillMaxHeight().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("KaiXu", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(vertical = 20.dp))
-                    val sections = buildList {
-                        add(DesktopDestination.TASK_EDITOR to "任务")
-                        if (sources != null) add(DesktopDestination.SCHEDULE to "日程")
-                        add(DesktopDestination.WORKSPACES to "工作区")
-                    }
-                    for ((route, label) in sections) {
-                        NavigationDrawerItem(
-                            label = { Text(label) }, selected = activeSection == route,
-                            modifier = Modifier.testTag("nav-$route"),
-                            onClick = {
-                                navigator.openSection(route)
-                            },
-                        )
-                    }
-                }
-                VerticalDivider()
+                DesktopSidebar(
+                    activeSection = activeSection,
+                    showSchedule = sources != null,
+                    onOpenSection = navigator::openSection,
+                )
             }
             NavHost(
                 navController = navController,

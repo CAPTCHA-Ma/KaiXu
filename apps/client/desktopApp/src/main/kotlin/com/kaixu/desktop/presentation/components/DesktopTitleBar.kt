@@ -2,19 +2,10 @@ package com.kaixu.desktop.presentation.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -25,10 +16,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.kaixu.desktop.presentation.theme.DesktopChromeColors as Colors
 import com.kaixu.desktop.window.WindowsTitleBarState
@@ -80,20 +67,14 @@ private fun TitleBarButton(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val interactions = remember { MutableInteractionSource() }
-    val hovered by interactions.collectIsHoveredAsState()
-    val pressed by interactions.collectIsPressedAsState()
-    val active = enabled && (selected || hovered || pressed)
-    val foreground = (if (active) Colors.Color1 else Colors.Color2).copy(alpha = if (enabled) 1f else .35f)
-    Box(
-        Modifier.size(Colors.Height * .8f).clip(RoundedCornerShape(6.dp))
-            .background(if (active) Colors.Color3 else Colors.Color1)
-            .testTag(tag)
-            .semantics { contentDescription = label; this.selected = selected }
-            .hoverable(interactions, enabled)
-            .clickable(interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
+    DesktopChromeButton(
+        label = label,
+        tag = tag,
+        onClick = onClick,
+        modifier = Modifier.size(Colors.ButtonHeight),
+        selected = selected,
+        enabled = enabled,
+    ) { foreground ->
         Canvas(Modifier.size(18.dp)) {
             val unit = size.minDimension / 24f
             val stroke = Stroke(1.8f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round)
