@@ -13,10 +13,13 @@ import java.time.ZoneId
 class DesktopAppContainer : ViewModel() {
     private val database = openDesktopDatabase()
     val localDataSources = LocalDataSources(database)
-    val graph = AppGraph(source = localDataSources.tasks)
     val scheduling = LocalSchedulingGraph(localDataSources, LOCAL_ACTOR_ID) { millis ->
         Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Shanghai")).toLocalDate().toString()
     }
+    val graph = AppGraph(
+        source = localDataSources.tasks,
+        fixedEventSource = localDataSources.fixedEvents,
+    )
 
     override fun onCleared() {
         database.close()

@@ -12,9 +12,12 @@ internal fun FixedEventEntity.toDomain(): FixedEvent = FixedEvent(
     workspaceId = workspaceId,
     createdBy = createdBy,
     reminderOffsetMinutes = reminderOffsetMinutes,
+    repeatWeekdays = repeatWeekdays?.split(',')?.mapNotNull { it.toIntOrNull() }?.toSet(),
+    repeatUntil = repeatUntil,
     seriesId = seriesId,
     originalDate = originalDate,
     isOverride = isOverride,
+    isCancelled = deletedAt != null,
 )
 
 /** 修改时从已存实体复制，保留创建时间与同步元数据。 */
@@ -28,6 +31,8 @@ internal fun FixedEvent.toEntity(original: FixedEventEntity? = null): FixedEvent
         workspaceId = workspaceId,
         createdBy = createdBy,
         reminderOffsetMinutes = reminderOffsetMinutes,
+        repeatWeekdays = repeatWeekdays?.toStorage(),
+        repeatUntil = repeatUntil,
         seriesId = seriesId,
         originalDate = originalDate,
         isOverride = isOverride,
@@ -40,7 +45,11 @@ internal fun FixedEvent.toEntity(original: FixedEventEntity? = null): FixedEvent
         workspaceId = workspaceId,
         createdBy = createdBy,
         reminderOffsetMinutes = reminderOffsetMinutes,
+        repeatWeekdays = repeatWeekdays?.toStorage(),
+        repeatUntil = repeatUntil,
         seriesId = seriesId,
         originalDate = originalDate,
         isOverride = isOverride,
     )
+
+private fun Set<Int>.toStorage(): String = sorted().joinToString(",")

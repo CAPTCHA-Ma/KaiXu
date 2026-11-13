@@ -39,17 +39,21 @@ class AppNavigationTest {
     private val showApp = mutableStateOf(true)
     private val directory = Files.createTempDirectory("kaixu-navigation-test").toFile()
     private val database = openDesktopDatabase(directory.resolve("navigation.db"))
-    private val source = LocalDataSources(database).tasks
+    private val sources = LocalDataSources(database)
+    private val source = sources.tasks
     private var failNextSave = false
-    private val graph = AppGraph(object : TaskDataSource by source {
-        override suspend fun createTask(value: Task): Task {
-            if (failNextSave) {
-                failNextSave = false
-                error("测试保存失败")
+    private val graph = AppGraph(
+        object : TaskDataSource by source {
+            override suspend fun createTask(value: Task): Task {
+                if (failNextSave) {
+                    failNextSave = false
+                    error("测试保存失败")
+                }
+                return source.createTask(value)
             }
-            return source.createTask(value)
-        }
-    })
+        },
+        fixedEventSource = sources.fixedEvents,
+    )
 
     @After
     fun clearHost() {
@@ -311,7 +315,7 @@ class AppNavigationTest {
         clickTag("titlebar-back")
         clickTag("nav-schedule")
         compose.onNodeWithTag("titlebar-forward").assertIsNotEnabled()
-        compose.onNodeWithText("固定事件", substring = false).assertExists()
+        compose.onNodeWithTag("schedule-create").assertExists()
         clickTag("titlebar-back")
         compose.onNodeWithTag("workspace-search").assertTextContains("过滤条件")
         clickTag("titlebar-back")

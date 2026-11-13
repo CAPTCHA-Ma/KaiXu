@@ -1,6 +1,7 @@
 package com.kaixu.data.repository
 
 import com.kaixu.app.di.AppGraph
+import com.kaixu.data.datasource.local.RoomFixedEventDataSource
 import com.kaixu.data.datasource.local.RoomTaskDataSource
 import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.WorkSessionEntity
@@ -25,7 +26,7 @@ class TaskRepositoryDatabaseTest {
         try {
             openDesktopDatabase(file).let { db ->
                 try {
-                    val graph = AppGraph(RoomTaskDataSource(db.taskDao()))
+                    val graph = AppGraph(RoomTaskDataSource(db.taskDao()), RoomFixedEventDataSource(db.fixedEventDao()))
                     assertEquals(original.copy(title = "original"), graph.taskUseCases.create(original))
                     createdAt = db.taskDao().findById(original.id)!!.createdAt
                     db.workSessionDao().insert(WorkSessionEntity(id = "session", taskId = original.id,
@@ -42,7 +43,7 @@ class TaskRepositoryDatabaseTest {
             }
             openDesktopDatabase(file).let { db ->
                 try {
-                    val graph = AppGraph(RoomTaskDataSource(db.taskDao()))
+                    val graph = AppGraph(RoomTaskDataSource(db.taskDao()), RoomFixedEventDataSource(db.fixedEventDao()))
                     assertEquals(edited, graph.taskUseCases.findById(original.id))
                     graph.taskUseCases.refresh()
                     assertEquals(listOf(edited), graph.taskUseCases.observe().value)
@@ -61,7 +62,7 @@ class TaskRepositoryDatabaseTest {
             }
             openDesktopDatabase(file).let { db ->
                 try {
-                    val graph = AppGraph(RoomTaskDataSource(db.taskDao()))
+                    val graph = AppGraph(RoomTaskDataSource(db.taskDao()), RoomFixedEventDataSource(db.fixedEventDao()))
                     assertNull(graph.taskUseCases.findById(original.id))
                     assertTrue(graph.taskUseCases.search("").isEmpty())
                     assertFalse(graph.taskUseCases.update(edited))

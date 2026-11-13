@@ -10,10 +10,16 @@ import com.kaixu.app.di.AppGraph
 import com.kaixu.android.presentation.ui.settings.SettingsScreen
 import com.kaixu.android.presentation.ui.tasks.TaskEditorRoute
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
+import com.kaixu.data.datasource.local.LocalDataSources
+import com.kaixu.android.presentation.ui.scheduling.ScheduleDayRoute
 
 /** 导航层决定显示哪个页面，并为各导航条目取得页面 ViewModel。 */
 @Composable
-fun AndroidNavigation(graph: AppGraph, modifier: Modifier = Modifier) {
+fun AndroidNavigation(
+    graph: AppGraph,
+    sources: LocalDataSources? = null,
+    modifier: Modifier = Modifier,
+) {
     val navController = rememberNavController()
     NavHost(
         navController = navController,
@@ -27,12 +33,22 @@ fun AndroidNavigation(graph: AppGraph, modifier: Modifier = Modifier) {
             }
             TaskEditorRoute(
                 viewModel = editor,
+                onOpenSchedule = if (sources == null) null else {
+                    {
+                        navController.navigate(AndroidDestination.SCHEDULE) { launchSingleTop = true }
+                    }
+                },
                 onOpenSettings = {
                     navController.navigate(AndroidDestination.SETTINGS) {
                         launchSingleTop = true
                     }
                 },
             )
+        }
+        if (sources != null) {
+            composable(AndroidDestination.SCHEDULE) {
+                ScheduleDayRoute(sources, onBack = { navController.popBackStack() })
+            }
         }
         composable(AndroidDestination.SETTINGS) {
             // 纯说明页没有业务状态，不需要空壳 ViewModel。
