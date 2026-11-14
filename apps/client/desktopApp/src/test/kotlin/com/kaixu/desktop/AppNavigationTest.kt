@@ -70,7 +70,7 @@ class AppNavigationTest {
         }
     }
 
-    private fun startApp(fullNavigation: Boolean = false) {
+    private fun startApp(fullNavigation: Boolean = false, startOnHome: Boolean = false) {
         // UI 测试没有真实 Window，显式提供窗口通常提供的宿主能力。
         compose.setContent {
             if (showApp.value) {
@@ -82,6 +82,9 @@ class AppNavigationTest {
                 }
             }
         }
+        compose.onNodeWithTag("home-screen").assertExists()
+        if (startOnHome) return
+        clickTag("nav-task-editor")
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("任务标题") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
@@ -104,7 +107,7 @@ class AppNavigationTest {
         }
         caption.assertContentDescriptionEquals("任务")
         // 禁用的历史按钮不产生预览。
-        compose.onNodeWithTag("titlebar-back").performMouseInput { enter(center) }
+        compose.onNodeWithTag("titlebar-forward").performMouseInput { enter(center) }
         caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "当前页面"))
         caption.performMouseInput { moveTo(center) }
 
@@ -279,7 +282,7 @@ class AppNavigationTest {
     @Test
     fun titleBarSettingsBackForwardPreserveTaskDraft() {
         startApp()
-        compose.onNodeWithTag("titlebar-back").assertIsNotEnabled()
+        compose.onNodeWithTag("titlebar-back").assertIsEnabled()
         compose.onNodeWithTag("titlebar-forward").assertIsNotEnabled()
         compose.onNodeWithText("任务标题").performTextInput("窗口导航草稿")
         clickTag("titlebar-settings")
@@ -289,7 +292,7 @@ class AppNavigationTest {
         screenshot("settings")
         clickTag("titlebar-back")
         compose.onNodeWithText("任务标题").assertTextContains("窗口导航草稿")
-        compose.onNodeWithTag("titlebar-back").assertIsNotEnabled()
+        compose.onNodeWithTag("titlebar-back").assertIsEnabled()
         compose.onNodeWithTag("titlebar-forward").assertIsEnabled()
         compose.onNodeWithTag("titlebar-settings").assertIsNotSelected()
         screenshot("tasks")
@@ -320,7 +323,64 @@ class AppNavigationTest {
         compose.onNodeWithTag("workspace-search").assertTextContains("过滤条件")
         clickTag("titlebar-back")
         compose.onNodeWithText("任务标题").assertTextContains("保留任务草稿")
+        compose.onNodeWithTag("titlebar-back").assertIsEnabled()
+    }
+
+    @Test
+    fun homeStartsBlankAndParticipatesInHistoryWithoutSelectingAButton() {
+        startApp(fullNavigation = true, startOnHome = true)
+        val caption = compose.onNodeWithTag("titlebar-caption")
+        caption.assertContentDescriptionEquals("首页")
+        compose.onNodeWithTag("titlebar-home").assertIsNotSelected()
         compose.onNodeWithTag("titlebar-back").assertIsNotEnabled()
+        compose.onNodeWithTag("titlebar-forward").assertIsNotEnabled()
+        for (tag in listOf("nav-task-editor", "nav-schedule", "nav-workspaces")) {
+            compose.onNodeWithTag(tag).assertIsNotSelected()
+        }
+        compose.onNodeWithTag("home-screen").onChildren().assertCountEquals(0)
+        screenshot("home")
+        clickTag("titlebar-home")
+        compose.onNodeWithTag("titlebar-back").assertIsNotEnabled()
+
+        clickTag("nav-task-editor")
+        compose.onNodeWithText("任务标题").performTextInput("首页往返草稿")
+        compose.onNodeWithTag("titlebar-home").performMouseInput { enter(center) }
+        caption.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "预览：首页"))
+        compose.onNodeWithText("任务标题").assertExists()
+        clickTag("titlebar-home")
+        caption.assertContentDescriptionEquals("首页")
+        compose.onNodeWithTag("home-screen").assertExists()
+        compose.onNodeWithTag("titlebar-home").assertIsNotSelected()
+        caption.performMouseInput { moveTo(center) }
+        clickTag("titlebar-back")
+        compose.onNodeWithText("任务标题").assertTextContains("首页往返草稿")
+        clickTag("titlebar-forward")
+        compose.onNodeWithTag("home-screen").assertExists()
+        clickTag("titlebar-home") // 当前首页不能重复记录历史。
+        clickTag("titlebar-back")
+        compose.onNodeWithText("任务标题").assertTextContains("首页往返草稿")
+        clickTag("titlebar-back")
+        compose.onNodeWithTag("home-screen").assertExists()
+        compose.onNodeWithTag("titlebar-back").assertIsNotEnabled()
+        clickTag("titlebar-settings")
+        compose.onNodeWithText("返回首页").assertExists()
+        compose.onNodeWithTag("titlebar-forward").assertIsNotEnabled()
+    }
+
+    @Test
+    fun homeRoundTripRestoresWorkspaceFiltersAndKeepsAllPagesInThePanel() {
+        startApp(fullNavigation = true, startOnHome = true)
+        clickTag("nav-workspaces")
+        compose.onNodeWithTag("workspace-search").performTextInput("首页筛选条件")
+        clickTag("titlebar-home")
+        clickTag("nav-workspaces")
+        compose.onNodeWithTag("workspace-search").assertTextContains("首页筛选条件")
+        compose.onNodeWithTag("desktop-content-panel").assertExists()
+        screenshot("workspace-panel")
+        clickTag("nav-schedule")
+        compose.onNodeWithTag("schedule-create").assertExists()
+        compose.onNodeWithTag("desktop-content-panel").assertExists()
+        screenshot("schedule-panel")
     }
 
     @Test

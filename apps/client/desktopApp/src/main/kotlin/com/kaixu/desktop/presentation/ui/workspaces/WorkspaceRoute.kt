@@ -25,7 +25,7 @@ import com.kaixu.presentation.state.workspaces.WorkspaceUiState
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
 
 private val WorkspaceBlue = Color(0xFF3157C8)
-private val WorkspaceBackground = Color(0xFFF5F7FB)
+private val WorkspaceBackground = Color.White
 
 @Composable
 fun WorkspaceRoute(

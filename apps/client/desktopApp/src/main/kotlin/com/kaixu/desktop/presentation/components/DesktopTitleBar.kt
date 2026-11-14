@@ -46,14 +46,21 @@ fun DesktopTitleBar(
             },
     ) {
         // 两边留相等空间，让标题相对整个窗口居中，并避让原生窗口按钮。
-        val safeMargin = maxOf(host.leftInset + 8.dp + Colors.ButtonHeight * 3 + 12.dp, host.rightInset + 8.dp)
+        val safeMargin = maxOf(host.leftInset + Colors.TitleButtonStartInset + Colors.ButtonHeight * 4 + 18.dp, host.rightInset + 8.dp)
         val captionWidth = (maxWidth - safeMargin * 2).coerceIn(0.dp, 220.dp)
         DesktopTitleCaption(currentDestination.title, previewDestination?.title, Modifier.width(captionWidth).align(Alignment.Center))
         Row(
-            Modifier.align(Alignment.CenterStart).padding(start = host.leftInset + 8.dp)
+            Modifier.align(Alignment.CenterStart).padding(start = host.leftInset + Colors.TitleButtonStartInset)
                 .onGloballyPositioned { host.updateButtonsBounds(it.boundsInRoot()) },
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            DesktopNavigationButton(
+                destination = DesktopDestination.Home,
+                tag = "titlebar-home",
+                onNavigate = onNavigate,
+                onPreview = onPreview,
+                modifier = Modifier.size(Colors.ButtonHeight),
+            ) { foreground -> TitleBarGlyph(Glyph.Home, foreground) }
             DesktopNavigationButton(
                 destination = DesktopDestination.Settings,
                 tag = "titlebar-settings",
@@ -70,7 +77,7 @@ fun DesktopTitleBar(
     }
 }
 
-private enum class Glyph { Settings, Back, Forward }
+private enum class Glyph { Home, Settings, Back, Forward }
 
 @Composable
 private fun TitleBarButton(
@@ -102,7 +109,22 @@ private fun TitleBarGlyph(glyph: Glyph, foreground: Color) {
     Canvas(Modifier.size(18.dp)) {
         val unit = size.minDimension / 24f
         val stroke = Stroke(1.8f * unit, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        if (glyph == Glyph.Settings) {
+        if (glyph == Glyph.Home) {
+            val house = Path().apply {
+                moveTo(3f * unit, 10f * unit)
+                lineTo(12f * unit, 3f * unit)
+                lineTo(21f * unit, 10f * unit)
+                moveTo(5f * unit, 9f * unit)
+                lineTo(5f * unit, 21f * unit)
+                lineTo(10f * unit, 21f * unit)
+                lineTo(10f * unit, 14f * unit)
+                lineTo(14f * unit, 14f * unit)
+                lineTo(14f * unit, 21f * unit)
+                lineTo(19f * unit, 21f * unit)
+                lineTo(19f * unit, 9f * unit)
+            }
+            drawPath(house, foreground, style = stroke)
+        } else if (glyph == Glyph.Settings) {
             val gear = Path()
             repeat(64) { index ->
                 val angle = index * Math.PI * 2 / 64 - Math.PI / 2

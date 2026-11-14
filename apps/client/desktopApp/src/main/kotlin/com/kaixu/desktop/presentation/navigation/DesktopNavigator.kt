@@ -16,7 +16,7 @@ internal data class DesktopLocation(
 @Stable
 internal class DesktopHistory {
     private val entries = mutableStateListOf(
-        DesktopLocation(DesktopDestination.Tasks, DesktopDestination.Tasks)
+        DesktopLocation(DesktopDestination.Home, null)
     )
     var index by mutableIntStateOf(0)
         private set
@@ -45,7 +45,7 @@ internal class DesktopNavigator(private val controller: NavHostController) {
     fun open(destination: DesktopDestination) {
         val section = when (destination) {
             is DesktopDestination.Section -> destination
-            DesktopDestination.Settings -> null
+            DesktopDestination.Home, DesktopDestination.Settings -> null
             else -> history.current.section
         }
         val location = DesktopLocation(destination, section)
@@ -67,16 +67,17 @@ internal class DesktopNavigator(private val controller: NavHostController) {
     }
 
     private fun show(target: DesktopLocation) {
-        // 任务页作为稳定根条目保留草稿；工作区、日程复用已有的保存/恢复机制。
+        // 首页作为稳定根条目；任务、工作区、日程保存条目和 ViewModel，保留草稿与筛选。
         // 带 ID 的记录详情重新读取，不按目的地类型恢复，避免不同记录共用旧参数。
         val currentRoute = controller.currentDestination?.route
-        val retainCurrent = currentRoute == DesktopDestination.WORKSPACES || currentRoute == DesktopDestination.SCHEDULE
-        if (target.destination == DesktopDestination.Tasks) {
-            controller.popBackStack(DesktopDestination.TASK_EDITOR, inclusive = false, saveState = retainCurrent)
+        val retainCurrent = currentRoute == DesktopDestination.TASK_EDITOR ||
+            currentRoute == DesktopDestination.WORKSPACES || currentRoute == DesktopDestination.SCHEDULE
+        if (target.destination == DesktopDestination.Home) {
+            controller.popBackStack(DesktopDestination.HOME, inclusive = false, saveState = retainCurrent)
         } else {
             controller.navigate(target.destination.route) {
-                popUpTo(DesktopDestination.TASK_EDITOR) { saveState = retainCurrent }
-                restoreState = target.destination == DesktopDestination.Workspaces || target.destination == DesktopDestination.Schedule
+                popUpTo(DesktopDestination.HOME) { saveState = retainCurrent }
+                restoreState = target.destination is DesktopDestination.Section
                 launchSingleTop = true
             }
         }

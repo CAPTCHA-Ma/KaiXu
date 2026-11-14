@@ -64,6 +64,7 @@ class DesktopNavigationButtonTest {
             }
         }
         val destinations = listOf(
+            DesktopDestination.Home,
             DesktopDestination.Tasks, DesktopDestination.Schedule, DesktopDestination.Workspaces,
             DesktopDestination.Settings, DesktopDestination.TaskRecord("task-42"),
             DesktopDestination.EventRecord("event-42"), DesktopDestination.SessionRecord("session-42"),
