@@ -327,7 +327,7 @@ class AppNavigationTest {
     }
 
     @Test
-    fun homeStartsBlankAndParticipatesInHistoryWithoutSelectingAButton() {
+    fun homeShowsAgendaAndParticipatesInHistoryWithoutSelectingAButton() {
         startApp(fullNavigation = true, startOnHome = true)
         val caption = compose.onNodeWithTag("titlebar-caption")
         caption.assertContentDescriptionEquals("首页")
@@ -337,7 +337,7 @@ class AppNavigationTest {
         for (tag in listOf("nav-task-editor", "nav-schedule", "nav-workspaces")) {
             compose.onNodeWithTag(tag).assertIsNotSelected()
         }
-        compose.onNodeWithTag("home-screen").onChildren().assertCountEquals(0)
+        compose.onNodeWithTag("home-agenda-pane").assertExists()
         screenshot("home")
         clickTag("titlebar-home")
         compose.onNodeWithTag("titlebar-back").assertIsNotEnabled()

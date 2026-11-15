@@ -64,3 +64,13 @@ tasks.register<Exec>("desktopRuntimeInfo") {
     commandLine(desktopJavaExecutable.absolutePath, "-XshowSettings:properties", "-version")
 }
 
+tasks.register<JavaExec>("seedHomeAgendaPreview") {
+    group = "development"
+    description = "显式写入昨天至明天的首页预览安排（[预览] 标记，重复执行不重复插入）。"
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.kaixu.desktop.preview.HomeAgendaPreviewDataKt")
+    executable = desktopJavaExecutable.absolutePath
+    providers.gradleProperty("previewDatabase").orNull?.let { args(it) }
+}
+

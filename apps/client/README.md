@@ -109,7 +109,7 @@ Android APK 输出于 `androidApp/build/outputs/apk/debug/`；桌面安装包输
 
 ## 页面导航与验证
 
-桌面端启动进入空白首页，标题栏左侧依次为首页、设置、返回和前进；点击侧栏任务按钮进入任务页。Android 启动进入任务页。任务页点击“打开设置”，再点击“返回任务”。各端 AppContainer 在宿主范围保留 AppGraph，各端 Navigation 在任务条目范围创建共享 TaskEditorViewModel。往返后草稿、错误与已创建任务仍在；说明页没有实际设置开关。桌面端所有页面共用白色圆角内容面板，外部与标题栏、侧栏使用同一背景色，详见 [桌面框架说明](../../docs/03-design/desktop-titlebar.md)。
+桌面端启动进入首页，左上显示任务截止、固定事件与本人工作时段的卡片日程，默认定位当前或最近事项，可滚动查看昨天至明天；标题栏左侧依次为首页、设置、返回和前进。点击侧栏任务按钮进入任务页。Android 启动进入任务页。任务页点击“打开设置”，再点击“返回任务”。各端 AppContainer 在宿主范围保留 AppGraph，各端 Navigation 在任务条目范围创建共享 TaskEditorViewModel。往返后草稿、错误与已创建任务仍在；说明页没有实际设置开关。桌面端所有页面共用白色圆角内容面板，外部与标题栏、侧栏使用同一背景色，详见 [桌面框架说明](../../docs/03-design/desktop-titlebar.md) 和 [首页日程说明](../../docs/03-design/desktop-home-agenda.md)。
 
 详见 [导航设计](../../docs/03-design/client-navigation.md)、[手工验收步骤](../../tests/acceptance/new-task-demo.md) 和 [双端拆分验证](../../docs/04-testing/client-platform-split-verification.md)。
 

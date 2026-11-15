@@ -16,6 +16,9 @@ import androidx.savedstate.read
 import com.kaixu.app.di.AppGraph
 import com.kaixu.desktop.presentation.ui.settings.SettingsScreen
 import com.kaixu.desktop.presentation.ui.home.HomeScreen
+import com.kaixu.desktop.presentation.ui.home.HomeRoute
+import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
+import com.kaixu.domain.usecase.scheduling.AgendaUseCase
 import com.kaixu.desktop.presentation.ui.tasks.TaskEditorRoute
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
@@ -91,7 +94,19 @@ fun DesktopNavigation(
             startDestination = DesktopDestination.HOME,
             modifier = Modifier.fillMaxSize(),
         ) {
-            composable(DesktopDestination.HOME) { HomeScreen() }
+            composable(DesktopDestination.HOME) { entry ->
+                if (sources == null) HomeScreen()
+                else {
+                    val home = viewModel<HomeViewModel>(viewModelStoreOwner = entry) {
+                        HomeViewModel(
+                            AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
+                            LOCAL_ACTOR_ID,
+                        )
+                    }
+                    HomeRoute(home, onOpenRecord = openRecord,
+                        onOpenSchedule = { navigator.open(DesktopDestination.Schedule) })
+                }
+            }
             composable(DesktopDestination.TASK_EDITOR) { entry ->
                 // entry 是 NavBackStackEntry：同一条目重组时复用 VM，出栈时清理。
                 val editor = viewModel<TaskEditorViewModel>(viewModelStoreOwner = entry) {
