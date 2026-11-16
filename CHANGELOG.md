@@ -8,7 +8,7 @@
 
 - **V12 · 2026-11-16 · Android 页面遮挡修复**。移除覆盖内容的原生标题栏，按系统安全区域布置页面，并将日程日期与切换按钮分行；键盘弹出时收起任务页顶部说明，避免挡住新增按钮。数据库结构不变，覆盖安装保留已有数据。Android API 36 模拟器上验证日期完整显示、前后切换及返回今天、任务页与键盘布局，已有测试任务 `qatest` 保留；`:androidApp:assembleDebug` 构建通过。[Issue #26](https://github.com/CAPTCHA-Ma/KaiXu/issues/26) · [Android 页面代码](apps/client/androidApp/src/main/kotlin/com/kaixu/android/)。
 
-- **V11 · 2026-11-16 · 工作区概览显示重复课次（待验证）**。修复工作区概览只显示重复事件首次日期的问题；近七天课次复用日程展开规则，按课次最终时间及工作区展示，取消的例外不显示，点击课次沿用原序列和课次日期打开编辑器。按序列和日期区间展开，避免超长事件使近期课次遗漏。一次性事件展示范围和数据库结构不变；提交 `a48942c` 的 GitHub Actions push 与 pull_request 测试通过，更新后的测试结果及 Windows 桌面实际验收见 [PR #25](https://github.com/CAPTCHA-Ma/KaiXu/pull/25) 与 [工作区重复课次验证](docs/04-testing/workspace-recurring-overview-verification.md)。
+- **V11 · 2026-11-16 · 工作区概览显示重复课次（待审核）**。修复工作区概览只显示重复事件首次日期的问题；近七天课次复用日程展开规则，按课次最终时间及工作区展示，取消的例外不显示，点击课次沿用原序列和课次日期打开编辑器。按序列和日期区间展开，避免超长事件使近期课次遗漏。一次性事件展示范围和数据库结构不变；提交 `0fea7c8` 的 GitHub Actions push 与 pull_request 测试通过，并在 Windows 上验证普通每周课次显示、单次编辑和取消及重启保留，详见 [PR #25](https://github.com/CAPTCHA-Ma/KaiXu/pull/25) 与 [工作区重复课次验证](docs/04-testing/workspace-recurring-overview-verification.md)。
 
 - **V10 · 2026-11-12 · Windows 自定义标题栏与页面历史**。新增固定高度灰白标题栏及设置、返回、前进按钮，接入 JBR API 1.5.0，保留并设色原生窗口控制按钮；现有主页面、设置与记录详情统一经过窗口访问历史。任务草稿、工作区筛选保留，后退后新跳转清除前进分支；数据库不变，不引入 Jewel。Linux 下完成编译，18 项桌面测试全部通过；Windows 原生窗口和安装包待验收，详见 [设计与验证说明](docs/03-design/desktop-titlebar.md)。
 
