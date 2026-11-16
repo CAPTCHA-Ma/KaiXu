@@ -4,7 +4,9 @@
 
 客户端行为、依赖版本或数据库结构发生变化时，在同一个 PR 更新本文件。每条写明日期、涉及范围、改动及原因、升级影响和已完成的验证，并链接到 PR、提交或验收记录。编号只递增，已有编号不改号、不复用。回退或替换时追加条目并引用原编号。数据库升级须同时提交新结构快照、迁移及旧库升级验证。
 
-**下一条编号为 V13。**
+**下一条编号为 V14。**
+
+- **V13 · 2026-11-16 · Windows 桌面文字清晰度**。Windows 桌面主题使用系统 Microsoft YaHei UI 字体，统一常用文字样式，并让工作区名称沿用主题字体，减轻中英文回退字体和衬线字体混用造成的观感差异；字号、语义颜色及其他平台原有字体不变，字体不可用时由系统回退，数据库结构不变。在 Windows 11、JBR 21.0.9 上启动桌面版，检查任务、工作区、日程与工作区新建弹窗的普通内容显示。[桌面主题](apps/client/desktopApp/src/main/kotlin/com/kaixu/desktop/presentation/theme/KaiXuTheme.kt)。
 
 - **V12 · 2026-11-16 · Android 页面遮挡修复**。移除覆盖内容的原生标题栏，按系统安全区域布置页面，并将日程日期与切换按钮分行；键盘弹出时收起任务页顶部说明，避免挡住新增按钮。数据库结构不变，覆盖安装保留已有数据。Android API 36 模拟器上验证日期完整显示、前后切换及返回今天、任务页与键盘布局，已有测试任务 `qatest` 保留；`:androidApp:assembleDebug` 构建通过。[Issue #26](https://github.com/CAPTCHA-Ma/KaiXu/issues/26) · [Android 页面代码](apps/client/androidApp/src/main/kotlin/com/kaixu/android/)。
 
