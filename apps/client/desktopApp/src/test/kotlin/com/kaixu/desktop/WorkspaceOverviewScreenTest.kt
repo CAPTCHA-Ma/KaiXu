@@ -171,7 +171,7 @@ class WorkspaceOverviewScreenTest {
         clickTag(tag, scroll = true)
         awaitTag("event-editor-title")
         compose.onNodeWithTag("event-editor-title").assertTextContains("本次课程")
-        compose.onNodeWithTag("event-editor-reminder").assertTextContains("30 分钟")
+        compose.onNodeWithTag("event-editor-reminder").assertTextEquals("站内提醒：提前 30 分钟")
         compose.onNodeWithTag("event-editor-title").performTextReplacement("已修改本次")
         clickTag("event-editor-save")
         compose.waitUntil(5_000) {
