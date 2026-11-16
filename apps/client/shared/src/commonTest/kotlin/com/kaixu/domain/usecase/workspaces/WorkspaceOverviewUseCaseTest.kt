@@ -88,6 +88,27 @@ class WorkspaceOverviewUseCaseTest {
     }
 
     @Test
+    fun longRunningOccurrencesDoNotTruncateRecentOrOtherSeries() = runTest {
+        val source = ReadOnlySources()
+        fun at(date: String) = ShanghaiTime.atLocalDate(date, 9 * 60 * 60 * 1000L)
+        val long = FixedEvent("long", "长期事件", at("2010-11-01"), at("2022-11-01"),
+            workspaceId = "course", createdBy = "me", repeatWeekdays = setOf(1, 2, 3), repeatUntil = "2026-11-30")
+        val short = FixedEvent("short", "正常课程", at("2010-11-01"), at("2010-11-01") + 3_600_000L,
+            workspaceId = "course", createdBy = "me", repeatWeekdays = setOf(1), repeatUntil = "2026-11-30")
+        source.events = listOf(long, short)
+
+        val occurrences = source.useCase()("course", "me", window).recurringOccurrences
+        val keys = occurrences.map { it.key }
+
+        assertTrue("long@2026-11-09" in keys, "超长事件不能因展开器的单次日期上限而漏掉近期课次")
+        assertTrue("short@2026-11-09" in keys, "其他序列不应受到超长事件的展开起点影响")
+        assertTrue("long@2016-11-07" in keys, "从窗口前多年开始且仍在进行的课次应保留")
+        assertTrue("long@2023-01-24" in keys, "首段的最后一天应保留")
+        assertTrue("long@2023-01-25" in keys, "下段的第一天应保留")
+        assertEquals(keys.size, keys.toSet().size, "分段边界不能重复课次")
+    }
+
+    @Test
     fun preservesOriginalRecordsAndIncludesOnlyWorkspaceDataAndOwnSessions() = runTest {
         val source = ReadOnlySources()
         val current = Task("t", "当前任务", workspaceId = "course")

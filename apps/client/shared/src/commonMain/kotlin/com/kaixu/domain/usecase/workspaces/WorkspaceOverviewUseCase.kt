@@ -61,14 +61,32 @@ class WorkspaceOverviewUseCase(
         val allEvents = events.listEvents().filter { it.createdBy == ownerUserId }
         val overrides = events.listOverridesIncludingDeleted().filter { it.createdBy == ownerUserId }
         val windowStart = ShanghaiTime.atLocalDate(window.todayDate, 0L)
-        // 包含从窗口前一天或更早开始、但跨入窗口的长时课次。
-        val longestDuration = allEvents.asSequence().filter { it.repeatWeekdays != null && it.endsAt > it.startsAt }
-            .map { it.endsAt - it.startsAt }.maxOrNull() ?: 0L
-        val expansionStart = if (windowStart < Long.MIN_VALUE + longestDuration) Long.MIN_VALUE else windowStart - longestDuration
-        val expanded = Recurrence.expand(
-            allEvents, overrides,
-            expansionStart, window.upcomingEndMillisExclusive,
-        )
+        // 每条序列独立回溯，避免超长事件扩大其他序列的查询范围。
+        // 展开器每次最多处理 3660 天，按整日分段才能覆盖更长的重叠区间。
+        val expanded = allEvents.asSequence()
+            .filter { it.seriesId == null && it.repeatWeekdays != null && it.endsAt > it.startsAt }
+            .flatMap { series ->
+                val until = series.repeatUntil ?: return@flatMap emptySequence()
+                val recurrenceEnd = minOf(window.upcomingEndMillisExclusive,
+                    ShanghaiTime.atLocalDate(until, 0L) + 24L * 60 * 60 * 1000)
+                val duration = if (series.startsAt < 0 && series.endsAt > Long.MAX_VALUE + series.startsAt)
+                    Long.MAX_VALUE else series.endsAt - series.startsAt
+                val overlapStart = if (windowStart < Long.MIN_VALUE + duration) Long.MIN_VALUE else windowStart - duration
+                var start = maxOf(series.startsAt, overlapStart)
+                val result = mutableListOf<ScheduleOccurrence>()
+                while (start < recurrenceEnd) {
+                    val startDate = ShanghaiTime.localDateOf(start)
+                    val endDate = ShanghaiTime.localDateOf(recurrenceEnd - 1)
+                    val end = if (ShanghaiTime.daysBetween(startDate, endDate) < 3000) {
+                        recurrenceEnd
+                    } else {
+                        ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(startDate, 3000), 0L)
+                    }
+                    result += Recurrence.expand(listOf(series), overrides, start, end)
+                    start = end
+                }
+                result.asSequence()
+            }.toList()
         val records = allEvents.associateBy { it.id }
         // 例外可从窗口外移入；仅遍历窗口内的原定日期时，展开器不会返回这种课次。
         val movedIntoWindow = overrides.mapNotNull { override ->
