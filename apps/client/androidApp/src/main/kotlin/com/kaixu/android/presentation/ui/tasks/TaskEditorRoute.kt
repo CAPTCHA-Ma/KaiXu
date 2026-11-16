@@ -7,6 +7,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
@@ -19,15 +20,18 @@ fun TaskEditorRoute(
     onOpenSchedule: (() -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Column(
         Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("KaiXu 个人任务", style = MaterialTheme.typography.headlineMedium)
-        Text("任务保存在本机，重启后可继续查看")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            onOpenSchedule?.let { TextButton(onClick = it) { Text("打开日程") } }
-            TextButton(onClick = onOpenSettings) { Text("打开设置") }
+        if (!keyboardVisible) {
+            Text("KaiXu 个人任务", style = MaterialTheme.typography.headlineMedium)
+            Text("任务保存在本机，重启后可继续查看")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                onOpenSchedule?.let { TextButton(onClick = it) { Text("打开日程") } }
+                TextButton(onClick = onOpenSettings) { Text("打开设置") }
+            }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             TaskEditorScreen(

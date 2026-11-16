@@ -53,8 +53,8 @@ fun ScheduleDayRoute(sources: LocalDataSources, onBack: () -> Unit) {
             TextButton(onClick = { selectedDate = selectedDate.minusDays(1) }) { Text("前一天") }
             TextButton(onClick = { selectedDate = LocalDate.now(ScheduleZone) }) { Text("今天") }
             TextButton(onClick = { selectedDate = selectedDate.plusDays(1) }) { Text("后一天") }
-            Text(DayLabel.format(selectedDate), style = MaterialTheme.typography.titleMedium)
         }
+        Text(DayLabel.format(selectedDate), style = MaterialTheme.typography.titleMedium)
 
         val snapshot = result
         when {

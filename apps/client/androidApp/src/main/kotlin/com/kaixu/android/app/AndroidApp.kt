@@ -1,6 +1,7 @@
 package com.kaixu.android.app
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -13,7 +14,7 @@ import com.kaixu.android.presentation.theme.KaiXuTheme
 fun AndroidApp() {
     val container = viewModel<AndroidAppContainer>()
     KaiXuTheme {
-        Surface(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
             AndroidNavigation(graph = container.graph, sources = container.localDataSources)
         }
     }
