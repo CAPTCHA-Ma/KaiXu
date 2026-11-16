@@ -15,14 +15,27 @@ import com.kaixu.domain.usecase.scheduling.AgendaEntry
 internal object HomeAgendaStyle {
     const val WidthFraction = .62f
     const val HeightFraction = .80f
-    val CardRadius = 18.dp
+    val CardRadius = 32.dp
     val CardHeight = 104.dp
     val CardGap = 14.dp
     const val HoverScaleIncrease = .018f
     val HoverHorizontalOffset = 6.dp
     val HoverVerticalOffset = 4.dp
-    val Text = Color(0xFF243044)
-    val Muted = Color(0xFF8A93A3)
+    val Text = Color(0xFF211F1B)
+    val Muted = Color(0xFF9C968A)
+
+    /** 所有卡片共用同一张暖白纸面；状态只体现在时间、引线与节点等装饰色上。 */
+    val CardSurface = Color(0xFFF8F6F1)
+    val CardBorder = Color(0xFFEAE5DB)
+    val CardShadow = Color(0xFF3B2F20)
+    val TitleFaded = Color(0xFF948E83)
+    /** 尚未开始：松石墨青。 */
+    val Upcoming = Color(0xFF2F5B5E)
+    /** 正在进行：朱砂。 */
+    val Ongoing = Color(0xFFC0492F)
+    /** 已经过去：灰烬，文字用深一档保证可读。 */
+    val Past = Color(0xFFBDB7AC)
+    val PastText = Color(0xFFA19B90)
 }
 
 @Composable

@@ -3,38 +3,27 @@ package com.kaixu.desktop.presentation.ui.home
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kaixu.domain.usecase.scheduling.AgendaEntry
-import com.kaixu.domain.usecase.scheduling.AgendaKind
 import com.kaixu.domain.usecase.scheduling.AgendaSnapshot
-import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -226,75 +215,11 @@ internal fun AgendaTimeline(
                             compositingStrategy = CompositingStrategy.Offscreen
                             shadowElevation = pose.elevation + hoverAmount * 3.dp.toPx()
                             shape = RoundedCornerShape(HomeAgendaStyle.CardRadius)
-                            ambientShadowColor = Color.Black.copy(alpha = .05f)
-                            spotShadowColor = Color.Black.copy(alpha = .10f)
+                            ambientShadowColor = HomeAgendaStyle.CardShadow.copy(alpha = .06f)
+                            spotShadowColor = HomeAgendaStyle.CardShadow.copy(alpha = .11f)
                         })
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AgendaCard(entry: AgendaEntry, now: Long, today: String, onOpen: (AgendaEntry) -> Unit, modifier: Modifier = Modifier) {
-    val current = entry.isOngoing(now)
-    val accent = when (entry.kind) {
-        AgendaKind.FIXED_EVENT -> Color(0xFF6B82AC)
-        AgendaKind.WORK_SESSION -> Color(0xFF63988E)
-        AgendaKind.TASK_DEADLINE -> Color(0xFFB39161)
-    }
-    val kind = when (entry.kind) {
-        AgendaKind.FIXED_EVENT -> "固定事件"
-        AgendaKind.WORK_SESSION -> "个人时段"
-        AgendaKind.TASK_DEADLINE -> "任务截止"
-    }
-    val date = ShanghaiTime.localDateOf(entry.time)
-    val dateLabel = when (date) {
-        today -> "今天"
-        ShanghaiTime.plusDays(today, -1) -> "昨天"
-        ShanghaiTime.plusDays(today, 1) -> "明天"
-        else -> date.substring(5).replace('-', '/')
-    }
-    Surface(
-        modifier = modifier.testTag("home-agenda-${entry.key}").clickable(
-            interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button,
-            onClick = { onOpen(entry) },
-        ),
-        shape = RoundedCornerShape(HomeAgendaStyle.CardRadius),
-        color = if (current) Color(0xFFF0F5FF) else Color.White,
-        border = BorderStroke(1.dp, if (current) Color(0xFFC9D9F2) else Color(0xFFE7EBF1)),
-    ) {
-        Row(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.width(76.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(if (entry.dateOnly) "当天截止" else ShanghaiTime.format(entry.time).substring(11),
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                    color = if (current) Color(0xFF426CA9) else HomeAgendaStyle.Text)
-                Text(dateLabel + (entry.endsAt?.let { " · ${((it - entry.time) / 60_000)}分钟" } ?: ""),
-                    style = MaterialTheme.typography.labelSmall, color = HomeAgendaStyle.Muted, maxLines = 1)
-            }
-            Box(Modifier.width(3.dp).height(36.dp).background(accent.copy(alpha = .65f), RoundedCornerShape(2.dp)))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(entry.title, style = MaterialTheme.typography.titleMedium, color = HomeAgendaStyle.Text,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                entry.workspace?.let { workspace -> Text(workspace,
-                    style = MaterialTheme.typography.bodySmall, color = HomeAgendaStyle.Muted,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Surface(color = accent.copy(alpha = .09f), shape = RoundedCornerShape(6.dp)) {
-                    Text(kind, Modifier.padding(horizontal = 7.dp, vertical = 4.dp), color = accent,
-                        style = MaterialTheme.typography.labelSmall)
-                }
-                val status = when {
-                    entry.completed -> "已完成"
-                    current -> "进行中"
-                    entry.kind == AgendaKind.TASK_DEADLINE && entry.time < now -> "已过截止"
-                    else -> null
-                }
-                if (status != null) Text(status, style = MaterialTheme.typography.labelSmall,
-                    color = if (current) Color(0xFF426CA9) else HomeAgendaStyle.Muted)
             }
         }
     }

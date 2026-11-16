@@ -254,7 +254,7 @@ class HomeAgendaScreenTest {
         assertTrue("相邻卡片只应轻微缩小", neighbor.width / centerBounds.width > .92f)
         screenshot("wheel")
 
-        // 把正在进行的蓝色卡片移到相邻槽位，检查其顶部和底部颜色一致。
+        // 把正在进行的卡片移到相邻槽位，检查其顶部和底部颜色一致，且与其他卡片共用同一纸面底色。
         wheel(1)
         val card = compose.onNodeWithTag("home-agenda-${snapshot.entries[initial].key}")
         fun blankColors(): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
@@ -263,8 +263,9 @@ class HomeAgendaScreenTest {
                 pixels[pixels.width / 2, (pixels.height * .90f).toInt()]
         }
         val (top, bottom) = blankColors()
-        assertEquals("相邻卡片底色保持完全不透明", 240f / 255f, top.red, .005f)
-        assertEquals(245f / 255f, top.green, .005f)
+        assertEquals("相邻卡片底色保持完全不透明", 248f / 255f, top.red, .005f)
+        assertEquals(246f / 255f, top.green, .005f)
+        assertEquals(241f / 255f, top.blue, .005f)
         assertTrue("同一张卡片不应再被上下渐变遮罩染成不同颜色",
             maxOf(abs(top.red - bottom.red), abs(top.green - bottom.green), abs(top.blue - bottom.blue)) < .012f)
         card.performMouseInput { moveTo(center) }
@@ -370,8 +371,9 @@ class HomeAgendaScreenTest {
         screenshot("wide-hover-left-edge")
         val pixels = compose.onRoot().captureToImage().toPixelMap()
         val outsideLeft = pixels[(viewport.left - compose.density.density).toInt(), original.center.y.toInt()]
-        assertEquals("左移越过滚轮边界后仍应绘出完整蓝色卡片，不能被裁成白色", 240f / 255f, outsideLeft.red, .012f)
-        assertEquals(245f / 255f, outsideLeft.green, .012f)
+        assertEquals("左移越过滚轮边界后仍应绘出完整卡片纸面，不能被裁成白色", 248f / 255f, outsideLeft.red, .012f)
+        assertEquals(246f / 255f, outsideLeft.green, .012f)
+        assertEquals(241f / 255f, outsideLeft.blue, .012f)
         val above = pixels[original.center.x.toInt(), (viewport.top - 2f * compose.density.density).toInt()]
         assertEquals("仍保留垂直裁剪，不侵占顶部预留区域", 1f, above.red, .002f)
         assertEquals(1f, above.green, .002f)
