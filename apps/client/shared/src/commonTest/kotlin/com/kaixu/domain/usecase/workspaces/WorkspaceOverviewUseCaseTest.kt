@@ -7,6 +7,7 @@ import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskStatus
+import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -18,6 +19,73 @@ import kotlin.test.assertTrue
 class WorkspaceOverviewUseCaseTest {
     // 上海 2026-11-08 09:00，近期窗口到 11-15 00:00，不把日期截止当成当天零点。
     private val window = WorkspaceDeadlineWindow("2026-11-08", 1_794_099_600_000L, "2026-11-15", 1_794_672_000_000L)
+
+    @Test
+    fun showsThisWeeksRecurringOccurrenceInsteadOfOnlyOriginalSeriesDate() = runTest {
+        val source = ReadOnlySources()
+        val original = ShanghaiTime.atLocalDate("2026-11-02", 9 * 60 * 60 * 1000L)
+        val expected = ShanghaiTime.atLocalDate("2026-11-09", 9 * 60 * 60 * 1000L)
+        source.events = listOf(FixedEvent("weekly", "每周课程", original, original + 3_600_000L,
+            workspaceId = "course", createdBy = "me", repeatWeekdays = setOf(1), repeatUntil = "2026-11-30"))
+
+        val result = source.useCase()("course", "me", window)
+
+        assertTrue(result.fixedEvents.any { it.id == "weekly" && it.startsAt == expected },
+            "工作区应显示近期的 11 月 9 日课次，而非只显示 11 月 2 日的序列起点")
+    }
+
+    @Test
+    fun recurringOccurrencesHonorCancelledAndMovedOverridesWithoutLeakingOtherOwners() = runTest {
+        val source = ReadOnlySources()
+        fun time(date: String) = ShanghaiTime.atLocalDate(date, 9 * 60 * 60 * 1000L)
+        val series = FixedEvent("series", "课程", time("2026-11-02"), time("2026-11-02") + 3_600_000L,
+            workspaceId = "course", createdBy = "me", repeatWeekdays = setOf(1, 3, 5), repeatUntil = "2026-11-30")
+        val movedOut = series.copy(id = "moved-out", startsAt = time("2026-11-11"), endsAt = time("2026-11-11") + 3_600_000L,
+            workspaceId = "other", repeatWeekdays = null, repeatUntil = null, seriesId = "series", originalDate = "2026-11-11", isOverride = true)
+        val cancelled = movedOut.copy(id = "cancelled", startsAt = time("2026-11-13"), endsAt = time("2026-11-13") + 3_600_000L,
+            workspaceId = "course", originalDate = "2026-11-13", isCancelled = true)
+        val otherSeries = series.copy(id = "other-series", title = "移动进入", workspaceId = "other", repeatWeekdays = setOf(3))
+        val movedIn = movedOut.copy(id = "moved-in", title = "移动进入", workspaceId = "course", seriesId = "other-series")
+        val foreign = series.copy(id = "foreign", createdBy = "someone-else")
+        source.events = listOf(series, movedOut, otherSeries, movedIn, foreign)
+        source.cancelledOverrides = listOf(cancelled)
+
+        val result = source.useCase()("course", "me", window)
+
+        assertEquals(listOf("series@2026-11-09", "other-series@2026-11-11"), result.recurringOccurrences.map { it.key })
+        assertEquals(listOf("series", "moved-in"), result.fixedEvents.map { it.id })
+        assertEquals("course", result.recurringOccurrences.last().workspaceId)
+    }
+
+    @Test
+    fun movedOccurrenceIsListedOnlyInItsActualTimeWindow() = runTest {
+        val source = ReadOnlySources()
+        fun time(date: String) = ShanghaiTime.atLocalDate(date, 9 * 60 * 60 * 1000L)
+        val series = FixedEvent("s", "课", time("2026-11-02"), time("2026-11-02") + 3_600_000L,
+            workspaceId = "course", createdBy = "me", repeatWeekdays = setOf(1), repeatUntil = "2026-11-30")
+        val movedIn = series.copy(id = "in", startsAt = time("2026-11-10"), endsAt = time("2026-11-10") + 3_600_000L,
+            repeatWeekdays = null, repeatUntil = null, seriesId = "s", originalDate = "2026-11-02", isOverride = true)
+        val movedOut = movedIn.copy(id = "out", startsAt = time("2026-11-20"), endsAt = time("2026-11-20") + 3_600_000L,
+            originalDate = "2026-11-09")
+        source.events = listOf(series, movedIn, movedOut)
+
+        val result = source.useCase()("course", "me", window)
+
+        assertEquals(listOf("s@2026-11-02"), result.recurringOccurrences.map { it.key })
+        assertEquals(listOf("in"), result.fixedEvents.map { it.id })
+    }
+
+    @Test
+    fun recurringOccurrenceStartingBeforeMidnightStillAppearsWhenItOverlapsTheWindow() = runTest {
+        val source = ReadOnlySources()
+        val first = ShanghaiTime.atLocalDate("2026-10-31", 23 * 60 * 60 * 1000L)
+        source.events = listOf(FixedEvent("overnight", "跨夜课程", first, first + 2 * 3_600_000L,
+            workspaceId = "course", createdBy = "me", repeatWeekdays = setOf(6), repeatUntil = "2026-11-30"))
+
+        val result = source.useCase()("course", "me", window)
+
+        assertTrue(result.recurringOccurrences.any { it.key == "overnight@2026-11-07" })
+    }
 
     @Test
     fun preservesOriginalRecordsAndIncludesOnlyWorkspaceDataAndOwnSessions() = runTest {
@@ -126,6 +194,7 @@ class WorkspaceOverviewUseCaseTest {
     private class ReadOnlySources : TaskDataSource, FixedEventDataSource, WorkSessionDataSource {
         var tasks = emptyList<Task>()
         var events = emptyList<FixedEvent>()
+        var cancelledOverrides = emptyList<FixedEvent>()
         var sessions = emptyList<WorkSession>()
         var failure: Exception? = null
         val taskQueries = mutableListOf<String>()
@@ -150,13 +219,13 @@ class WorkspaceOverviewUseCaseTest {
         override suspend fun createTask(value: Task): Task = error("概览不能创建任务")
         override suspend fun updateTask(value: Task): Boolean = error("概览不能更新任务")
         override suspend fun deleteTaskById(id: String): Boolean = error("概览不能删除任务")
-        override suspend fun listEvents(): List<FixedEvent> = error("应按工作区查询事件")
+        override suspend fun listEvents(): List<FixedEvent> = events
         override suspend fun findEventById(id: String): FixedEvent? = error("此测试无需详情查询")
         override suspend fun createEvent(value: FixedEvent): FixedEvent = error("概览不能创建事件")
         override suspend fun updateEvent(value: FixedEvent): Boolean = error("概览不能更新事件")
         override suspend fun deleteEventById(id: String): Boolean = error("概览不能删除事件")
         override suspend fun listEventsInRange(ownerId: String, start: Long, end: Long): List<FixedEvent> = error("此测试使用工作区事件")
-        override suspend fun listOverridesIncludingDeleted(): List<FixedEvent> = error("概览不展开重复事件")
+        override suspend fun listOverridesIncludingDeleted(): List<FixedEvent> = events.filter { it.seriesId != null } + cancelledOverrides
         override suspend fun truncateSeriesUntil(id: String, until: String?): Boolean = error("概览不能截断序列")
         override suspend fun findWorkSessionById(id: String): WorkSession? = error("此测试无需详情查询")
         override suspend fun createWorkSession(value: WorkSession): WorkSession = error("概览不能创建时段")

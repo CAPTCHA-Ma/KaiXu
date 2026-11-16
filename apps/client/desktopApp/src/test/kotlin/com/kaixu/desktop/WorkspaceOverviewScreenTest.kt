@@ -116,6 +116,72 @@ class WorkspaceOverviewScreenTest {
     }
 
     @Test
+    fun recurringOccurrenceOpensTheSelectedDateAndKeepsSeriesIdentity() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val expected = today.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, event) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "重复课程")
+            val series = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "每周课程", first, first + 3_600_000L,
+                workspaceId = workspace.id, repeatWeekdays = setOf(today.dayOfWeek.value),
+                repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            workspace to series
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        val occurrenceTag = "overview-event-${event.id}@$today"
+        awaitTag(occurrenceTag)
+        clickTag(occurrenceTag, scroll = true)
+        awaitTag("event-editor-start")
+        compose.onNodeWithTag("event-editor-start").assertTextContains(formatEventEditTime(expected))
+        compose.onNodeWithText("修改范围").assertExists()
+        assertEquals(first, runBlocking { sources.fixedEvents.findEventById(event.id)?.startsAt })
+    }
+
+    @Test
+    fun editingAnExistingOccurrencePreservesItsOwnReminder() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val changedStart = today.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, series, exception) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "例外课程")
+            val original = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "系列课程", first, first + 3_600_000L, workspaceId = workspace.id,
+                reminderOffsetMinutes = 5, repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            val occurrence = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "本次课程", changedStart, changedStart + 3_600_000L,
+                workspaceId = workspace.id, reminderOffsetMinutes = 30, seriesId = original.id,
+                originalDate = today.toString(), isOverride = true,
+            ))
+            Triple(workspace, original, occurrence)
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        val tag = "overview-event-${series.id}@$today"
+        awaitTag(tag)
+        clickTag(tag, scroll = true)
+        awaitTag("event-editor-title")
+        compose.onNodeWithTag("event-editor-title").assertTextContains("本次课程")
+        compose.onNodeWithTag("event-editor-reminder").assertTextContains("30 分钟")
+        compose.onNodeWithTag("event-editor-title").performTextReplacement("已修改本次")
+        clickTag("event-editor-save")
+        compose.waitUntil(5_000) {
+            runBlocking { sources.fixedEvents.findEventById(exception.id)?.title == "已修改本次" }
+        }
+        assertEquals(30, runBlocking { sources.fixedEvents.findEventById(exception.id)?.reminderOffsetMinutes })
+        assertEquals(5, runBlocking { sources.fixedEvents.findEventById(series.id)?.reminderOffsetMinutes })
+    }
+
+    @Test
     fun overviewAndGlobalEntryReadOriginalRecordsAndKeepFiltersAfterReturning() {
         val fixture = runBlocking {
             val course = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "数据库")

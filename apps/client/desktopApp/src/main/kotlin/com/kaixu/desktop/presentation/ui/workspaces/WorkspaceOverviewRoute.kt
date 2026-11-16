@@ -9,6 +9,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kaixu.domain.model.tasks.TaskStatus
+import com.kaixu.data.datasource.local.LocalDataSources
+import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
+import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineFilter
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineWindow
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceOverviewViewModel
@@ -17,6 +20,8 @@ import com.kaixu.desktop.presentation.ui.records.RecordKind
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 private val Shanghai = ZoneId.of("Asia/Shanghai")
 
@@ -35,9 +40,14 @@ internal fun localMoment(millis: Long): String =
 fun WorkspaceOverviewRoute(
     workspaceId: String,
     viewModel: WorkspaceOverviewViewModel,
+    sources: LocalDataSources,
     onOpenRecord: (LocalRecordTarget) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var eventTarget by remember(workspaceId) { mutableStateOf<EventEditorTarget?>(null) }
+    var eventError by remember(workspaceId) { mutableStateOf<String?>(null) }
+    var openingEvent by remember(workspaceId) { mutableStateOf(false) }
     LaunchedEffect(workspaceId) { viewModel.refresh(workspaceId) }
     var showAllTasks by androidx.compose.runtime.saveable.rememberSaveable(workspaceId) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.testTag("workspace-overview")) {
@@ -111,12 +121,40 @@ fun WorkspaceOverviewRoute(
             Surface(shape = RoundedCornerShape(12.dp)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("日程与我的工作时段", style = MaterialTheme.typography.titleMedium)
+                    if (data.recurringOccurrences.isNotEmpty()) Text("重复事件显示近七天课次", style = MaterialTheme.typography.bodySmall)
+                    eventError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (data.fixedEvents.isEmpty() && data.workSessions.isEmpty()) Text("暂无相关日程")
                     data.fixedEvents.forEach { event ->
+                        val occurrence = data.recurringOccurrences.firstOrNull { it.eventId == event.id && it.startsAt == event.startsAt }
                         OutlinedButton(
-                            onClick = { onOpenRecord(LocalRecordTarget(RecordKind.EVENT, event.id)) },
-                            modifier = Modifier.fillMaxWidth().testTag("overview-event-${event.id}"),
-                        ) { Text("${event.title}   ${localMoment(event.startsAt)}") }
+                            onClick = {
+                                if (occurrence == null) {
+                                    onOpenRecord(LocalRecordTarget(RecordKind.EVENT, event.id))
+                                } else if (!openingEvent) {
+                                    openingEvent = true
+                                    eventError = null
+                                    scope.launch {
+                                        try {
+                                            val row = sources.fixedEvents.findEventById(requireNotNull(occurrence.seriesId))
+                                            if (row == null) eventError = "事件已不可用，请刷新概览。"
+                                            else eventTarget = EventEditorTarget(
+                                                row.copy(title = occurrence.title, description = occurrence.description,
+                                                    workspaceId = occurrence.workspaceId,
+                                                    reminderOffsetMinutes = occurrence.reminderOffsetMinutes),
+                                                occurrence.startsAt, occurrence.endsAt, occurrence.originalDate,
+                                            )
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (_: Exception) {
+                                            eventError = "读取事件失败，请重试。"
+                                        } finally { openingEvent = false }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag(
+                                if (occurrence == null) "overview-event-${event.id}" else "overview-event-${occurrence.key}"
+                            ),
+                        ) { Text("${event.title}   ${localMoment(event.startsAt)}" + if (occurrence == null) "" else "  ·  重复") }
                     }
                     data.workSessions.forEach { session ->
                         OutlinedButton(
@@ -127,5 +165,13 @@ fun WorkspaceOverviewRoute(
                 }
             }
         }
+    }
+    eventTarget?.let { target ->
+        FixedEventEditorDialog(
+            sources = sources, target = target,
+            onDismiss = { eventTarget = null },
+            onSaved = { eventTarget = null; viewModel.refresh(workspaceId) },
+            onDeleted = { eventTarget = null; viewModel.refresh(workspaceId) },
+        )
     }
 }

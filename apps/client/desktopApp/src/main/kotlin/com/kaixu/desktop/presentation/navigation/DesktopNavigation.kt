@@ -123,9 +123,9 @@ fun DesktopNavigation(
                         } else null
                         WorkspaceRoute(
                             workspaceViewModel,
-                            overviewContent = overviewViewModel?.let { overview ->
-                                { space -> WorkspaceOverviewRoute(space.id, overview, openRecord) }
-                            },
+                            overviewContent = if (overviewViewModel != null && sources != null) {
+                                { space -> WorkspaceOverviewRoute(space.id, overviewViewModel, sources, openRecord) }
+                            } else null,
                             resourcesContent = sources?.let { localSources ->
                                 { space, summary, openAll ->
                                     WorkspaceResourcesSection(
