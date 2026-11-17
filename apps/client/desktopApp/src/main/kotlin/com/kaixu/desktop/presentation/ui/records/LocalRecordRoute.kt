@@ -53,14 +53,16 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
                             TaskStatus.IN_PROGRESS -> "进行中"
                             TaskStatus.COMPLETED -> "已完成"
                         },
-                        "截止" to (task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止"),
+                        "截止要求" to (task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止"),
                         "所属工作区" to (workspace?.name ?: if (task.workspaceId == null) "独立任务" else "关联工作区暂不可用"),
                     ), editableTask = task.takeIf { canEdit(it.createdBy, it.workspaceId, workspace) })
                 }
                 RecordKind.EVENT -> sources.fixedEvents.findEventById(target.id)?.let { event ->
                     val workspace = event.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
+                    val shared = event.createdBy != LOCAL_ACTOR_ID
                     RecordDetails(event.title, listOfNotNull(
-                        "开始" to localMoment(event.startsAt), "结束" to localMoment(event.endsAt),
+                        "记录类型" to if (shared) "共享事件（只读）" else "固定事件",
+                        "执行时间" to "${localMoment(event.startsAt)} — ${localMoment(event.endsAt)}",
                         event.description?.let { "说明" to it },
                         "所属工作区" to (workspace?.name ?: if (event.workspaceId == null) "独立事件" else "关联工作区暂不可用"),
                         event.repeatWeekdays?.let { days ->
@@ -76,15 +78,28 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
                 }
                 RecordKind.SESSION -> sources.workSessions.findWorkSessionById(target.id)
                     ?.takeIf { it.ownerUserId == LOCAL_ACTOR_ID }?.let { session ->
+                        val task = session.taskId?.let { sources.tasks.findTaskById(it) }
+                        val workspace = task?.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
                         RecordDetails("我的工作时段", listOfNotNull(
-                            "开始" to localMoment(session.startsAt), "结束" to localMoment(session.endsAt),
+                            "执行时间" to "${localMoment(session.startsAt)} — ${localMoment(session.endsAt)}",
                             "状态" to when (session.status) {
                                 WorkSessionStatus.PLANNED -> "已安排"
                                 WorkSessionStatus.COMPLETED -> "已完成"
                                 WorkSessionStatus.CANCELLED -> "已取消"
                             },
                             session.note?.let { "说明" to it },
-                            session.taskId?.let { id -> sources.tasks.findTaskById(id)?.title?.let { "关联任务" to it } },
+                            "截止要求" to (task?.let {
+                                it.deadlineDate ?: it.deadlineAt?.let(::localMoment) ?: "无截止"
+                            } ?: "无关联任务"),
+                            task?.let { "关联任务" to it.title },
+                            "所属工作区" to (workspace?.name ?: when {
+                                task == null -> "无关联任务"
+                                task.workspaceId == null -> "独立任务"
+                                else -> "关联工作区暂不可用"
+                            }),
+                            (workspace?.status == WorkspaceStatus.ARCHIVED).takeIf { it }?.let {
+                                "工作区状态" to "已归档，安排只读"
+                            },
                         ))
                     }
             }

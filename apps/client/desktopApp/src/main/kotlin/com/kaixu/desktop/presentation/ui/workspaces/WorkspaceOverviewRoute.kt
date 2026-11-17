@@ -9,6 +9,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kaixu.domain.model.tasks.TaskStatus
+import com.kaixu.domain.model.workspaces.Workspace
+import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineFilter
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineWindow
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceOverviewViewModel
@@ -33,17 +35,31 @@ internal fun localMoment(millis: Long): String =
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WorkspaceOverviewRoute(
-    workspaceId: String,
+    workspace: Workspace,
     viewModel: WorkspaceOverviewViewModel,
     onOpenRecord: (LocalRecordTarget) -> Unit,
 ) {
+    val workspaceId = workspace.id
+    val archived = workspace.status == WorkspaceStatus.ARCHIVED
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(workspaceId) { viewModel.refresh(workspaceId) }
     var showAllTasks by androidx.compose.runtime.saveable.rememberSaveable(workspaceId) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.testTag("workspace-overview")) {
-        Row {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("本地概览", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (archived) {
+                Text(
+                    "已归档",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("overview-archived"),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             TextButton(onClick = { viewModel.refresh(workspaceId) }, enabled = !state.isLoading) { Text("刷新概览") }
+        }
+        if (archived) {
+            Text("工作区已归档；已有任务、日程和工作时段继续显示，只读。", style = MaterialTheme.typography.bodySmall)
         }
         if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
         state.loadError?.let { message ->
@@ -95,7 +111,7 @@ fun WorkspaceOverviewRoute(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(task.title)
-                                Text(task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止",
+                                Text("截止要求：" + (task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止"),
                                     style = MaterialTheme.typography.bodySmall)
                             }
                             Text(when (task.status) {
@@ -110,19 +126,20 @@ fun WorkspaceOverviewRoute(
             }
             Surface(shape = RoundedCornerShape(12.dp)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("日程与我的工作时段", style = MaterialTheme.typography.titleMedium)
+                    Text("执行时间：日程与我的工作时段", style = MaterialTheme.typography.titleMedium)
+                    Text("截止要求显示在任务列表中，不进入执行时间。", style = MaterialTheme.typography.bodySmall)
                     if (data.fixedEvents.isEmpty() && data.workSessions.isEmpty()) Text("暂无相关日程")
                     data.fixedEvents.forEach { event ->
                         OutlinedButton(
                             onClick = { onOpenRecord(LocalRecordTarget(RecordKind.EVENT, event.id)) },
                             modifier = Modifier.fillMaxWidth().testTag("overview-event-${event.id}"),
-                        ) { Text("${event.title}   ${localMoment(event.startsAt)}") }
+                        ) { Text("${event.title}   ${localMoment(event.startsAt)}   固定事件" + if (archived) " · 已归档" else "") }
                     }
                     data.workSessions.forEach { session ->
                         OutlinedButton(
                             onClick = { onOpenRecord(LocalRecordTarget(RecordKind.SESSION, session.id)) },
                             modifier = Modifier.fillMaxWidth().testTag("overview-session-${session.id}"),
-                        ) { Text("我的工作时段   ${localMoment(session.startsAt)}") }
+                        ) { Text("我的工作时段   ${localMoment(session.startsAt)}" + if (archived) " · 已归档" else "") }
                     }
                 }
             }
