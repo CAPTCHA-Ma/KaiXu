@@ -211,6 +211,58 @@ class FixedEventScheduleTest {
     }
 
     @Test
+    fun eventOpenedBeforeWorkspaceArchiveCannotBeMovedOrDeleted() = runTest {
+        workspaces.add("source")
+        workspaces.add("destination")
+        val event = savedEvent(schedule.create(draft(workspaceId = "source")))
+        workspaces.setStatus("source", WorkspaceStatus.ARCHIVED)
+
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(event, draft(title = "移动", workspaceId = "destination"))
+        }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(event) }
+        assertEquals(event, events.findEventById(event.id))
+    }
+
+    @Test
+    fun recurringOccurrenceOpenedBeforeArchiveCannotBeEditedOrCancelled() = runTest {
+        workspaces.add("source")
+        val series = savedEvent(schedule.create(draft(workspaceId = "source", weekdays = setOf(1), until = "2026-11-30")))
+        workspaces.setStatus("source", WorkspaceStatus.ARCHIVED)
+
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(series, draft(title = "修改", start = "2026-11-09 09:00", end = "2026-11-09 10:00"), "2026-11-09")
+        }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series, "2026-11-09") }
+        assertTrue(events.listOverridesIncludingDeleted().isEmpty())
+        assertEquals(series, events.findEventById(series.id))
+    }
+
+    @Test
+    fun archivedMovedOccurrenceCannotBeChangedThroughActiveSeries() = runTest {
+        workspaces.add("series")
+        workspaces.add("moved")
+        val series = savedEvent(schedule.create(draft(workspaceId = "series", weekdays = setOf(1), until = "2026-11-30")))
+        val moved = savedEvent(schedule.update(
+            series, draft(title = "调课", start = "2026-11-09 14:00", end = "2026-11-09 15:00", workspaceId = "moved"),
+            originalDate = "2026-11-09",
+        ))
+        workspaces.setStatus("moved", WorkspaceStatus.ARCHIVED)
+
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(series, draft(title = "转出", start = "2026-11-09 15:00", end = "2026-11-09 16:00", workspaceId = "series"), "2026-11-09")
+        }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series, "2026-11-09") }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series) }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series, "2026-11-02", EditScope.THIS_AND_FUTURE) }
+        assertEquals(moved, events.findEventById(moved.id))
+        assertEquals(series, events.findEventById(series.id))
+
+        // An unrelated earlier occurrence remains editable.
+        assertTrue(schedule.delete(series, "2026-11-02", EditScope.THIS_OCCURRENCE))
+    }
+
+    @Test
     fun occurrencesOnlyContainOwnerEvents() = runTest {
         savedEvent(schedule.create(draft()))
         events.rows["other"] = FixedEvent(
@@ -291,6 +343,11 @@ class FixedEventScheduleTest {
                 description = null, linkedCourseId = null, status = status,
                 createdAt = 0, updatedAt = 0, archivedAt = null,
             )
+        }
+        fun setStatus(id: String, status: WorkspaceStatus) {
+            val index = rows.indexOfFirst { it.id == id }
+            check(index >= 0)
+            rows[index] = rows[index].copy(status = status)
         }
         override suspend fun listWorkspaces(status: WorkspaceStatus?) = rows.filter { status == null || it.status == status }
         override suspend fun findWorkspaceById(id: String) = rows.firstOrNull { it.id == id }

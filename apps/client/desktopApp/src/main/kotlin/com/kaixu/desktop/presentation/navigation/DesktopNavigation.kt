@@ -124,7 +124,7 @@ fun DesktopNavigation(
                         WorkspaceRoute(
                             workspaceViewModel,
                             overviewContent = if (overviewViewModel != null && sources != null) {
-                                { space -> WorkspaceOverviewRoute(space.id, overviewViewModel, sources, openRecord) }
+                                { space -> WorkspaceOverviewRoute(space, overviewViewModel, sources, openRecord) }
                             } else null,
                             resourcesContent = sources?.let { localSources ->
                                 { space, summary, openAll ->
@@ -144,7 +144,7 @@ fun DesktopNavigation(
                 }
                 if (sources != null) {
                     composable(DesktopDestination.SCHEDULE) {
-                        LocalScheduleRoute(sources)
+                        LocalScheduleRoute(sources, onOpenRecord = openRecord)
                     }
                     composable(DesktopDestination.RESOURCE) { entry ->
                         val id = requireNotNull(entry.arguments).read { getString("id") }

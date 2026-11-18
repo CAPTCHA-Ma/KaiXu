@@ -91,6 +91,9 @@ class FixedEventSchedule(
     ): FixedEventSaveResult = transaction.run {
         val current = requireNotNull(events.findEventById(target.id)) { "事件已不可用，请刷新后重试。" }
         require(current.createdBy == ownerUserId) { "只能编辑本人的事件。" }
+        // The editor may have been opened before the workspace was archived.
+        // Re-read the source workspace inside the same transaction as the write.
+        requireWorkspace(current.workspaceId)
         val normalized = normalize(draft)
         requireWorkspace(normalized.workspaceId)
         val ranges = Recurrence.proposedRanges(normalized)
@@ -100,6 +103,7 @@ class FixedEventSchedule(
                 .firstOrNull { it.seriesId == current.id && it.originalDate == originalDate }
                 ?.also { if (!it.isCancelled) excludeIds += it.id }
         } else null
+        requireAffectedOverrideWorkspaces(current, originalDate, scope)
         val excludeSeriesId = if (originalDate != null) current.id else null
         val conflicts = findConflicts(ranges, excludeIds, excludeSeriesId)
         val key = confirmationKey(normalized, originalDate, scope)
@@ -181,6 +185,8 @@ class FixedEventSchedule(
     ): Boolean = transaction.run {
         val current = events.findEventById(target.id) ?: return@run false
         require(current.createdBy == ownerUserId) { "只能删除本人的事件。" }
+        requireWorkspace(current.workspaceId)
+        requireAffectedOverrideWorkspaces(current, originalDate, scope)
         when {
             originalDate == null -> {
                 if (current.repeatWeekdays != null) {
@@ -275,6 +281,24 @@ class FixedEventSchedule(
         require(workspace.ownerUserId == ownerUserId && workspace.status == WorkspaceStatus.ACTIVE) {
             "只能关联本人进行中的工作区。"
         }
+    }
+
+    /** A moved occurrence can belong to a different workspace from its series. */
+    private suspend fun requireAffectedOverrideWorkspaces(
+        current: FixedEvent,
+        originalDate: String?,
+        scope: EditScope,
+    ) {
+        if (current.repeatWeekdays == null) return
+        events.listOverridesIncludingDeleted()
+            .filter { override ->
+                override.seriesId == current.id && !override.isCancelled && when {
+                    originalDate == null -> true
+                    scope == EditScope.THIS_OCCURRENCE -> override.originalDate == originalDate
+                    else -> override.originalDate?.let { ShanghaiTime.compareDates(it, originalDate) >= 0 } == true
+                }
+            }
+            .forEach { requireWorkspace(it.workspaceId) }
     }
 
     private fun normalize(draft: FixedEventDraft): FixedEventDraft {

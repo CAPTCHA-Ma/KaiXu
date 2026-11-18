@@ -10,8 +10,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.data.datasource.local.LocalDataSources
+import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
 import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
+import com.kaixu.domain.model.scheduling.ScheduleOccurrence
+import com.kaixu.domain.model.workspaces.Workspace
+import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineFilter
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineWindow
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceOverviewViewModel
@@ -38,22 +42,37 @@ internal fun localMoment(millis: Long): String =
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WorkspaceOverviewRoute(
-    workspaceId: String,
+    workspace: Workspace,
     viewModel: WorkspaceOverviewViewModel,
     sources: LocalDataSources,
     onOpenRecord: (LocalRecordTarget) -> Unit,
 ) {
+    val workspaceId = workspace.id
+    val archived = workspace.status == WorkspaceStatus.ARCHIVED
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var eventTarget by remember(workspaceId) { mutableStateOf<EventEditorTarget?>(null) }
+    var readOnlyOccurrence by remember(workspaceId) { mutableStateOf<ScheduleOccurrence?>(null) }
     var eventError by remember(workspaceId) { mutableStateOf<String?>(null) }
     var openingEvent by remember(workspaceId) { mutableStateOf(false) }
     LaunchedEffect(workspaceId) { viewModel.refresh(workspaceId) }
     var showAllTasks by androidx.compose.runtime.saveable.rememberSaveable(workspaceId) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.testTag("workspace-overview")) {
-        Row {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("本地概览", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            if (archived) {
+                Text(
+                    "已归档",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("overview-archived"),
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             TextButton(onClick = { viewModel.refresh(workspaceId) }, enabled = !state.isLoading) { Text("刷新概览") }
+        }
+        if (archived) {
+            Text("工作区已归档；已有任务、日程和工作时段继续显示，只读。", style = MaterialTheme.typography.bodySmall)
         }
         if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
         state.loadError?.let { message ->
@@ -105,7 +124,7 @@ fun WorkspaceOverviewRoute(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(task.title)
-                                Text(task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止",
+                                Text("截止要求：" + (task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止"),
                                     style = MaterialTheme.typography.bodySmall)
                             }
                             Text(when (task.status) {
@@ -120,7 +139,8 @@ fun WorkspaceOverviewRoute(
             }
             Surface(shape = RoundedCornerShape(12.dp)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("日程与我的工作时段", style = MaterialTheme.typography.titleMedium)
+                    Text("执行时间：日程与我的工作时段", style = MaterialTheme.typography.titleMedium)
+                    Text("截止要求显示在任务列表中，不进入执行时间。", style = MaterialTheme.typography.bodySmall)
                     if (data.recurringOccurrences.isNotEmpty()) Text("重复事件显示近七天课次", style = MaterialTheme.typography.bodySmall)
                     eventError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (data.fixedEvents.isEmpty() && data.workSessions.isEmpty()) Text("暂无相关日程")
@@ -137,12 +157,22 @@ fun WorkspaceOverviewRoute(
                                         try {
                                             val row = sources.fixedEvents.findEventById(requireNotNull(occurrence.seriesId))
                                             if (row == null) eventError = "事件已不可用，请刷新概览。"
-                                            else eventTarget = EventEditorTarget(
-                                                row.copy(title = occurrence.title, description = occurrence.description,
-                                                    workspaceId = occurrence.workspaceId,
-                                                    reminderOffsetMinutes = occurrence.reminderOffsetMinutes),
-                                                occurrence.startsAt, occurrence.endsAt, occurrence.originalDate,
-                                            )
+                                            else {
+                                                val currentWorkspace = sources.workspaces.findWorkspaceById(workspaceId)
+                                                val seriesWorkspace = row.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
+                                                val canEdit = row.createdBy == LOCAL_ACTOR_ID &&
+                                                    currentWorkspace?.ownerUserId == LOCAL_ACTOR_ID &&
+                                                    currentWorkspace.status == WorkspaceStatus.ACTIVE &&
+                                                    (row.workspaceId == null || (seriesWorkspace?.ownerUserId == LOCAL_ACTOR_ID &&
+                                                        seriesWorkspace.status == WorkspaceStatus.ACTIVE))
+                                                if (!canEdit) readOnlyOccurrence = occurrence
+                                                else eventTarget = EventEditorTarget(
+                                                    row.copy(title = occurrence.title, description = occurrence.description,
+                                                        workspaceId = occurrence.workspaceId,
+                                                        reminderOffsetMinutes = occurrence.reminderOffsetMinutes),
+                                                    occurrence.startsAt, occurrence.endsAt, occurrence.originalDate,
+                                                )
+                                            }
                                         } catch (cancelled: CancellationException) {
                                             throw cancelled
                                         } catch (_: Exception) {
@@ -154,17 +184,25 @@ fun WorkspaceOverviewRoute(
                             modifier = Modifier.fillMaxWidth().testTag(
                                 if (occurrence == null) "overview-event-${event.id}" else "overview-event-${occurrence.key}"
                             ),
-                        ) { Text("${event.title}   ${localMoment(event.startsAt)}" + if (occurrence == null) "" else "  ·  重复") }
+                        ) { Text("${event.title}   ${localMoment(event.startsAt)}   固定事件" + (if (occurrence == null) "" else " · 重复") + if (archived) " · 已归档" else "") }
                     }
                     data.workSessions.forEach { session ->
                         OutlinedButton(
                             onClick = { onOpenRecord(LocalRecordTarget(RecordKind.SESSION, session.id)) },
                             modifier = Modifier.fillMaxWidth().testTag("overview-session-${session.id}"),
-                        ) { Text("我的工作时段   ${localMoment(session.startsAt)}") }
+                        ) { Text("我的工作时段   ${localMoment(session.startsAt)}" + if (archived) " · 已归档" else "") }
                     }
                 }
             }
         }
+    }
+    readOnlyOccurrence?.let { occurrence ->
+        AlertDialog(
+            onDismissRequest = { readOnlyOccurrence = null },
+            title = { Text(occurrence.title) },
+            text = { Text("${localMoment(occurrence.startsAt)} — ${localMoment(occurrence.endsAt)}\n该课次只读。", modifier = Modifier.testTag("overview-occurrence-read-only")) },
+            confirmButton = { TextButton(onClick = { readOnlyOccurrence = null }) { Text("关闭") } },
+        )
     }
     eventTarget?.let { target ->
         FixedEventEditorDialog(
