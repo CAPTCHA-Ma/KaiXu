@@ -116,6 +116,172 @@ class WorkspaceOverviewScreenTest {
     }
 
     @Test
+    fun recurringOccurrenceOpensTheSelectedDateAndKeepsSeriesIdentity() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val expected = today.atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, event) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "重复课程")
+            val series = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "每周课程", first, first + 3_600_000L,
+                workspaceId = workspace.id, repeatWeekdays = setOf(today.dayOfWeek.value),
+                repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            workspace to series
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        val occurrenceTag = "overview-event-${event.id}@$today"
+        awaitTag(occurrenceTag)
+        clickTag(occurrenceTag, scroll = true)
+        awaitTag("event-editor-start")
+        compose.onNodeWithTag("event-editor-start").assertTextContains(formatEventEditTime(expected))
+        compose.onNodeWithText("修改范围").assertExists()
+        assertEquals(first, runBlocking { sources.fixedEvents.findEventById(event.id)?.startsAt })
+    }
+
+    @Test
+    fun archivedWorkspaceRecurringOccurrenceCanBeViewedButNotEdited() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, event) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "已归档的重复课程")
+            val series = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "归档的每周课程", first, first + 3_600_000L,
+                workspaceId = workspace.id, repeatWeekdays = setOf(today.dayOfWeek.value),
+                repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            sources.workspaces.archiveWorkspace(workspace.id)
+            workspace to series
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        awaitEnabled("已归档 (1)")
+        click("已归档 (1)")
+        awaitTag("workspace-card-${course.id}")
+        clickTag("workspace-card-${course.id}")
+        val occurrenceTag = "overview-event-${event.id}@$today"
+        awaitTag(occurrenceTag)
+        compose.onNodeWithTag(occurrenceTag).assertTextContains("归档的每周课程", substring = true)
+        clickTag(occurrenceTag, scroll = true)
+        awaitTag("overview-occurrence-read-only")
+        compose.onNodeWithTag("overview-occurrence-read-only").assertTextContains("该课次只读。", substring = true)
+        compose.onNodeWithTag("edit-record").assertDoesNotExist()
+        compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
+        assertEquals(event, runBlocking { sources.fixedEvents.findEventById(event.id) })
+    }
+
+    @Test
+    fun sharedRecurringOccurrenceInOwnedWorkspaceIsVisibleAndReadOnly() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, series) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "共享课程工作区")
+            val event = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "共享每周课", first, first + 3_600_000L,
+                workspaceId = workspace.id, createdBy = "other-user",
+                repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            workspace to event
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        val occurrenceTag = "overview-event-${series.id}@$today"
+        awaitTag(occurrenceTag)
+        compose.onNodeWithTag(occurrenceTag).assertTextContains("共享每周课", substring = true)
+        clickTag(occurrenceTag, scroll = true)
+        awaitTag("overview-occurrence-read-only")
+        compose.onNodeWithTag("overview-occurrence-read-only").assertTextContains("该课次只读。", substring = true)
+        compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
+        assertEquals(series, runBlocking { sources.fixedEvents.findEventById(series.id) })
+    }
+
+    @Test
+    fun occurrenceMovedFromActiveSeriesToArchivedWorkspaceIsReadOnly() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val movedStart = today.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val (archived, series, moved) = runBlocking {
+            val activeWorkspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "进行中的原课程")
+            val targetWorkspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "已归档的目标课程")
+            val original = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "原系列课程", first, first + 3_600_000L,
+                workspaceId = activeWorkspace.id, repeatWeekdays = setOf(today.dayOfWeek.value),
+                repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            val exception = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "移动后的课次", movedStart, movedStart + 3_600_000L,
+                workspaceId = targetWorkspace.id, seriesId = original.id,
+                originalDate = today.toString(), isOverride = true,
+            ))
+            sources.workspaces.archiveWorkspace(targetWorkspace.id)
+            Triple(targetWorkspace, original, exception)
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("已归档 (1)")
+        click("已归档 (1)")
+        awaitTag("workspace-card-${archived.id}")
+        clickTag("workspace-card-${archived.id}")
+        val occurrenceTag = "overview-event-${series.id}@$today"
+        awaitTag(occurrenceTag)
+        compose.onNodeWithTag(occurrenceTag).assertTextContains("移动后的课次", substring = true)
+        clickTag(occurrenceTag, scroll = true)
+        awaitTag("overview-occurrence-read-only")
+        compose.onNodeWithTag("overview-occurrence-read-only").assertTextContains("该课次只读。", substring = true)
+        compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
+        assertEquals(series, runBlocking { sources.fixedEvents.findEventById(series.id) })
+        assertEquals(moved, runBlocking { sources.fixedEvents.findEventById(moved.id) })
+    }
+
+    @Test
+    fun editingAnExistingOccurrencePreservesItsOwnReminder() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val changedStart = today.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, series, exception) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "例外课程")
+            val original = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "系列课程", first, first + 3_600_000L, workspaceId = workspace.id,
+                reminderOffsetMinutes = 5, repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            val occurrence = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "本次课程", changedStart, changedStart + 3_600_000L,
+                workspaceId = workspace.id, reminderOffsetMinutes = 30, seriesId = original.id,
+                originalDate = today.toString(), isOverride = true,
+            ))
+            Triple(workspace, original, occurrence)
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        val tag = "overview-event-${series.id}@$today"
+        awaitTag(tag)
+        clickTag(tag, scroll = true)
+        awaitTag("event-editor-title")
+        compose.onNodeWithTag("event-editor-title").assertTextContains("本次课程")
+        compose.onNodeWithTag("event-editor-reminder").assertTextEquals("站内提醒：提前 30 分钟")
+        compose.onNodeWithTag("event-editor-title").performTextReplacement("已修改本次")
+        clickTag("event-editor-save")
+        compose.waitUntil(5_000) {
+            runBlocking { sources.fixedEvents.findEventById(exception.id)?.title == "已修改本次" }
+        }
+        assertEquals(30, runBlocking { sources.fixedEvents.findEventById(exception.id)?.reminderOffsetMinutes })
+        assertEquals(5, runBlocking { sources.fixedEvents.findEventById(series.id)?.reminderOffsetMinutes })
+    }
+
+    @Test
     fun overviewAndGlobalEntryReadOriginalRecordsAndKeepFiltersAfterReturning() {
         val fixture = runBlocking {
             val course = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "数据库")

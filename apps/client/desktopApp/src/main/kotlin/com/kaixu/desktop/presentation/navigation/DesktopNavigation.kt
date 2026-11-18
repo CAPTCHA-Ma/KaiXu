@@ -116,16 +116,16 @@ fun DesktopNavigation(
                         val overviewViewModel = if (sources != null) {
                             viewModel<WorkspaceOverviewViewModel>(viewModelStoreOwner = entry) {
                                 WorkspaceOverviewViewModel(
-                                    WorkspaceOverviewUseCase(sources.tasks, sources.fixedEvents, sources.workSessions),
+                                    WorkspaceOverviewUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
                                     LOCAL_ACTOR_ID, ::currentWorkspaceWindow,
                                 )
                             }
                         } else null
                         WorkspaceRoute(
                             workspaceViewModel,
-                            overviewContent = overviewViewModel?.let { overview ->
-                                { space -> WorkspaceOverviewRoute(space, overview, openRecord) }
-                            },
+                            overviewContent = if (overviewViewModel != null && sources != null) {
+                                { space -> WorkspaceOverviewRoute(space, overviewViewModel, sources, openRecord) }
+                            } else null,
                             resourcesContent = sources?.let { localSources ->
                                 { space, summary, openAll ->
                                     WorkspaceResourcesSection(

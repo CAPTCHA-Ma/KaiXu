@@ -168,6 +168,97 @@ class FixedEventScheduleTest {
     }
 
     @Test
+    fun splitFromFirstDateReplacesOldSeriesWithoutInvalidEndDate() = runTest {
+        val series = savedEvent(schedule.create(draft(weekdays = setOf(1), until = "2026-11-30")))
+        val replacement = savedEvent(schedule.update(
+            series, draft(title = "新课程", start = "2026-11-02 14:00", end = "2026-11-02 15:00", weekdays = setOf(1), until = "2026-11-30"),
+            originalDate = "2026-11-02", scope = EditScope.THIS_AND_FUTURE,
+        ))
+        assertEquals(null, events.findEventById(series.id))
+        assertEquals(replacement, events.findEventById(replacement.id))
+        val occurrences = schedule.occurrences(millis("2026-11-02 00:00"), millis("2026-11-10 00:00"))
+        assertEquals(listOf("2026-11-02 14:00", "2026-11-09 14:00"), occurrences.map { ShanghaiTime.format(it.startsAt) })
+        assertTrue(occurrences.all { it.seriesId == replacement.id })
+    }
+
+    @Test
+    fun futureEditRejectsCancelledOccurrenceWithoutRestoringIt() = runTest {
+        val series = savedEvent(schedule.create(draft(weekdays = setOf(1), until = "2026-11-30")))
+        assertTrue(schedule.delete(series, "2026-11-16"))
+        val before = events.rows.toMap()
+        val error = assertFailsWith<IllegalArgumentException> {
+            schedule.update(series, draft(title = "新课程", start = "2026-11-09 14:00", end = "2026-11-09 15:00", weekdays = setOf(1), until = "2026-11-30"),
+                originalDate = "2026-11-09", scope = EditScope.THIS_AND_FUTURE)
+        }
+        assertTrue(error.message.orEmpty().contains("已修改或取消"))
+        assertEquals(before, events.rows)
+        assertTrue(schedule.occurrences(millis("2026-11-16 00:00"), millis("2026-11-17 00:00")).isEmpty())
+        // Editing only the selected occurrence remains available.
+        savedEvent(schedule.update(series, draft(title = "仅本次", start = "2026-11-09 14:00", end = "2026-11-09 15:00"),
+            originalDate = "2026-11-09", scope = EditScope.THIS_OCCURRENCE))
+        assertTrue(schedule.occurrences(millis("2026-11-16 00:00"), millis("2026-11-17 00:00")).isEmpty())
+    }
+
+    @Test
+    fun futureEditRejectsMovedOccurrenceWithoutDiscardingIt() = runTest {
+        workspaces.add("source")
+        workspaces.add("destination")
+        val series = savedEvent(schedule.create(draft(workspaceId = "source", weekdays = setOf(1), until = "2026-11-30")))
+        val moved = savedEvent(schedule.update(series,
+            draft(title = "跨区调课", start = "2026-11-16 14:00", end = "2026-11-16 15:00", workspaceId = "destination"),
+            originalDate = "2026-11-16"))
+        val before = events.rows.toMap()
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(series,
+                draft(title = "新课程", start = "2026-11-09 14:00", end = "2026-11-09 15:00", workspaceId = "source", weekdays = setOf(1), until = "2026-11-30"),
+                originalDate = "2026-11-09", scope = EditScope.THIS_AND_FUTURE)
+        }
+        assertEquals(before, events.rows)
+        assertEquals(moved, events.findEventById(moved.id))
+        assertEquals("跨区调课", schedule.occurrences(millis("2026-11-16 00:00"), millis("2026-11-17 00:00")).single().title)
+    }
+
+    @Test
+    fun futureEditAllowsExceptionsBeforeSplitDate() = runTest {
+        val series = savedEvent(schedule.create(draft(weekdays = setOf(1), until = "2026-11-30")))
+        assertTrue(schedule.delete(series, "2026-11-09"))
+        savedEvent(schedule.update(series,
+            draft(title = "新课程", start = "2026-11-16 14:00", end = "2026-11-16 15:00", weekdays = setOf(1), until = "2026-11-30"),
+            originalDate = "2026-11-16", scope = EditScope.THIS_AND_FUTURE))
+        assertTrue(schedule.occurrences(millis("2026-11-09 00:00"), millis("2026-11-10 00:00")).isEmpty())
+        assertEquals("新课程", schedule.occurrences(millis("2026-11-16 00:00"), millis("2026-11-17 00:00")).single().title)
+    }
+
+    @Test
+    fun futureEditRejectsStartDateOutsideWeekdayRule() = runTest {
+        val series = savedEvent(schedule.create(draft(weekdays = setOf(1), until = "2026-11-30")))
+        val before = events.rows.toMap()
+        val error = assertFailsWith<IllegalArgumentException> {
+            schedule.update(series,
+                draft(title = "周二课程", start = "2026-11-10 14:00", end = "2026-11-10 15:00", weekdays = setOf(1), until = "2026-11-30"),
+                originalDate = "2026-11-09", scope = EditScope.THIS_AND_FUTURE)
+        }
+        assertTrue(error.message.orEmpty().contains("星期不在重复规则"))
+        assertEquals(before, events.rows)
+    }
+
+    @Test
+    fun futureEditRejectsEarlierStartDateToAvoidOverlappingOldSeries() = runTest {
+        val series = savedEvent(schedule.create(draft(weekdays = setOf(1), until = "2026-11-30")))
+        val before = events.rows.toMap()
+        val error = assertFailsWith<IllegalArgumentException> {
+            schedule.update(series,
+                draft(title = "提前的课程", start = "2026-11-09 09:00", end = "2026-11-09 10:00", weekdays = setOf(1), until = "2026-11-30"),
+                originalDate = "2026-11-16", scope = EditScope.THIS_AND_FUTURE)
+        }
+        assertTrue(error.message.orEmpty().contains("选择仅本次"))
+        assertEquals(before, events.rows)
+        assertEquals(listOf("2026-11-09 09:00", "2026-11-16 09:00"),
+            schedule.occurrences(millis("2026-11-09 00:00"), millis("2026-11-17 00:00"))
+                .map { ShanghaiTime.format(it.startsAt) })
+    }
+
+    @Test
     fun deleteThisOccurrenceHidesOnlyThatOccurrence() = runTest {
         val series = savedEvent(schedule.create(draft(weekdays = setOf(1, 3), until = "2026-11-20")))
         assertTrue(schedule.delete(series, originalDate = "2026-11-04", scope = EditScope.THIS_OCCURRENCE))
@@ -208,6 +299,58 @@ class FixedEventScheduleTest {
         }
         assertFailsWith<IllegalArgumentException> { schedule.delete(foreign) }
         assertNotNull(events.findEventById(foreign.id))
+    }
+
+    @Test
+    fun eventOpenedBeforeWorkspaceArchiveCannotBeMovedOrDeleted() = runTest {
+        workspaces.add("source")
+        workspaces.add("destination")
+        val event = savedEvent(schedule.create(draft(workspaceId = "source")))
+        workspaces.setStatus("source", WorkspaceStatus.ARCHIVED)
+
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(event, draft(title = "移动", workspaceId = "destination"))
+        }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(event) }
+        assertEquals(event, events.findEventById(event.id))
+    }
+
+    @Test
+    fun recurringOccurrenceOpenedBeforeArchiveCannotBeEditedOrCancelled() = runTest {
+        workspaces.add("source")
+        val series = savedEvent(schedule.create(draft(workspaceId = "source", weekdays = setOf(1), until = "2026-11-30")))
+        workspaces.setStatus("source", WorkspaceStatus.ARCHIVED)
+
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(series, draft(title = "修改", start = "2026-11-09 09:00", end = "2026-11-09 10:00"), "2026-11-09")
+        }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series, "2026-11-09") }
+        assertTrue(events.listOverridesIncludingDeleted().isEmpty())
+        assertEquals(series, events.findEventById(series.id))
+    }
+
+    @Test
+    fun archivedMovedOccurrenceCannotBeChangedThroughActiveSeries() = runTest {
+        workspaces.add("series")
+        workspaces.add("moved")
+        val series = savedEvent(schedule.create(draft(workspaceId = "series", weekdays = setOf(1), until = "2026-11-30")))
+        val moved = savedEvent(schedule.update(
+            series, draft(title = "调课", start = "2026-11-09 14:00", end = "2026-11-09 15:00", workspaceId = "moved"),
+            originalDate = "2026-11-09",
+        ))
+        workspaces.setStatus("moved", WorkspaceStatus.ARCHIVED)
+
+        assertFailsWith<IllegalArgumentException> {
+            schedule.update(series, draft(title = "转出", start = "2026-11-09 15:00", end = "2026-11-09 16:00", workspaceId = "series"), "2026-11-09")
+        }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series, "2026-11-09") }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series) }
+        assertFailsWith<IllegalArgumentException> { schedule.delete(series, "2026-11-02", EditScope.THIS_AND_FUTURE) }
+        assertEquals(moved, events.findEventById(moved.id))
+        assertEquals(series, events.findEventById(series.id))
+
+        // An unrelated earlier occurrence remains editable.
+        assertTrue(schedule.delete(series, "2026-11-02", EditScope.THIS_OCCURRENCE))
     }
 
     @Test
@@ -291,6 +434,11 @@ class FixedEventScheduleTest {
                 description = null, linkedCourseId = null, status = status,
                 createdAt = 0, updatedAt = 0, archivedAt = null,
             )
+        }
+        fun setStatus(id: String, status: WorkspaceStatus) {
+            val index = rows.indexOfFirst { it.id == id }
+            check(index >= 0)
+            rows[index] = rows[index].copy(status = status)
         }
         override suspend fun listWorkspaces(status: WorkspaceStatus?) = rows.filter { status == null || it.status == status }
         override suspend fun findWorkspaceById(id: String) = rows.firstOrNull { it.id == id }

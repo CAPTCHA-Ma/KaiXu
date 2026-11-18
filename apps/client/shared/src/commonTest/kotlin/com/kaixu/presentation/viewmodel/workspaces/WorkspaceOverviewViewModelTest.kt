@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModelStore
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
+import com.kaixu.data.datasource.WorkspaceDataSource
+import com.kaixu.domain.model.workspaces.Workspace
+import com.kaixu.domain.model.workspaces.WorkspaceKind
+import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.tasks.Task
@@ -45,7 +49,7 @@ class WorkspaceOverviewViewModelTest {
         store = ViewModelStore()
         source = OverviewSources()
         windowReads = 0
-        vm = WorkspaceOverviewViewModel(WorkspaceOverviewUseCase(source, source, source), "me") {
+        vm = WorkspaceOverviewViewModel(WorkspaceOverviewUseCase(source, source, source, source), "me") {
             windowReads++
             WorkspaceDeadlineWindow("2026-11-08", 1_794_099_600_000L, "2026-11-15", 1_794_672_000_000L)
         }
@@ -167,9 +171,18 @@ class WorkspaceOverviewViewModelTest {
         assertTrue(assertNotNull(vm.uiState.value.overview).tasks.isEmpty())
     }
 
-    private class OverviewSources : TaskDataSource, FixedEventDataSource, WorkSessionDataSource {
+    private class OverviewSources : TaskDataSource, FixedEventDataSource, WorkSessionDataSource, WorkspaceDataSource {
         var records = emptyList<Task>()
         var read: suspend (String) -> List<Task> = { id -> records.filter { it.workspaceId == id } }
+        override suspend fun listWorkspaces(status: WorkspaceStatus?) = listOf("a", "b").map {
+            Workspace(it, "me", WorkspaceKind.COURSE, it, null, null, WorkspaceStatus.ACTIVE, 0L, 0L, null)
+        }
+        override suspend fun findWorkspaceById(id: String) = listWorkspaces(null).firstOrNull { it.id == id }
+        override suspend fun listProjectsForCourse(courseId: String, status: WorkspaceStatus?) = emptyList<Workspace>()
+        override suspend fun createWorkspace(kind: WorkspaceKind, name: String, description: String?, linkedCourseId: String?): Workspace = error("概览为只读")
+        override suspend fun updateWorkspace(id: String, name: String, description: String?, linkedCourseId: String?) = error("概览为只读")
+        override suspend fun archiveWorkspace(id: String) = error("概览为只读")
+        override suspend fun restoreWorkspace(id: String) = error("概览为只读")
         override suspend fun listTasksByWorkspace(workspaceId: String) = read(workspaceId)
         override suspend fun listEventsByWorkspace(workspaceId: String) = emptyList<FixedEvent>()
         override suspend fun listWorkSessions() = emptyList<WorkSession>()
@@ -180,13 +193,13 @@ class WorkspaceOverviewViewModelTest {
         override suspend fun createTask(value: Task): Task = error("概览为只读")
         override suspend fun updateTask(value: Task): Boolean = error("概览为只读")
         override suspend fun deleteTaskById(id: String): Boolean = error("概览为只读")
-        override suspend fun listEvents(): List<FixedEvent> = error("未使用的读取")
+        override suspend fun listEvents(): List<FixedEvent> = emptyList()
         override suspend fun findEventById(id: String): FixedEvent? = error("详情由桌面层处理")
         override suspend fun createEvent(value: FixedEvent): FixedEvent = error("概览为只读")
         override suspend fun updateEvent(value: FixedEvent): Boolean = error("概览为只读")
         override suspend fun deleteEventById(id: String): Boolean = error("概览为只读")
         override suspend fun listEventsInRange(ownerId: String, start: Long, end: Long): List<FixedEvent> = error("未使用的读取")
-        override suspend fun listOverridesIncludingDeleted(): List<FixedEvent> = error("概览不展开重复事件")
+        override suspend fun listOverridesIncludingDeleted(): List<FixedEvent> = emptyList()
         override suspend fun truncateSeriesUntil(id: String, until: String?): Boolean = error("概览为只读")
         override suspend fun findWorkSessionById(id: String): WorkSession? = error("详情由桌面层处理")
         override suspend fun createWorkSession(value: WorkSession): WorkSession = error("概览为只读")

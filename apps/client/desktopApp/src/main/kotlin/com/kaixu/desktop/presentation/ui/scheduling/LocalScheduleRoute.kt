@@ -30,6 +30,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 private val ScheduleZone = ZoneId.of("Asia/Shanghai")
 private val DayLabelFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd E", Locale.CHINA)
@@ -56,6 +57,11 @@ internal fun LocalScheduleRoute(
     var filter by remember { mutableStateOf<ScheduleWorkspaceFilter>(ScheduleWorkspaceFilter.All) }
     var reload by remember { mutableIntStateOf(0) }
     var creating by remember { mutableStateOf(false) }
+    var editorTarget by remember { mutableStateOf<EventEditorTarget?>(null) }
+    var readOnlyEntry by remember { mutableStateOf<ReadOnlyOccurrenceDetails?>(null) }
+    var opening by remember { mutableStateOf(false) }
+    var openError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     val workspaces by produceState<List<Workspace>>(emptyList(), sources, reload) {
         value = try {
@@ -79,8 +85,55 @@ internal fun LocalScheduleRoute(
     }
 
     val openEntry: (ScheduleEntry) -> Unit = { entry ->
-        val kind = if (entry.type == ScheduleEntryType.WORK_SESSION) RecordKind.SESSION else RecordKind.EVENT
-        onOpenRecord(LocalRecordTarget(kind, entry.recordId))
+        if (!entry.isRecurring) {
+            val kind = if (entry.type == ScheduleEntryType.WORK_SESSION) RecordKind.SESSION else RecordKind.EVENT
+            onOpenRecord(LocalRecordTarget(kind, entry.recordId))
+        } else if (!opening) {
+            opening = true
+            openError = null
+            scope.launch {
+                try {
+                    val series = entry.seriesId?.let { sources.fixedEvents.findEventById(it) }
+                    val occurrence = sources.fixedEvents.findEventById(entry.recordId)
+                    suspend fun editableWorkspace(id: String?): Boolean {
+                        if (id == null) return true
+                        val workspace = sources.workspaces.findWorkspaceById(id)
+                        return workspace?.ownerUserId == LOCAL_ACTOR_ID && workspace.status == WorkspaceStatus.ACTIVE
+                    }
+                    if (series == null || occurrence == null || entry.originalDate == null) {
+                        openError = "课次已不可用，请刷新日程。"
+                    } else if (entry.type != ScheduleEntryType.FIXED_EVENT ||
+                        series.createdBy != LOCAL_ACTOR_ID || occurrence.createdBy != LOCAL_ACTOR_ID ||
+                        occurrence.workspaceId != entry.workspaceId ||
+                        !editableWorkspace(series.workspaceId) || !editableWorkspace(occurrence.workspaceId)) {
+                        readOnlyEntry = ReadOnlyOccurrenceDetails(
+                            title = entry.title, description = occurrence.description,
+                            startsAt = entry.startsAt, endsAt = entry.endsAt,
+                            workspaceName = entry.workspaceName ?: if (entry.workspaceId == null) "独立事件" else "关联工作区暂不可用",
+                            weekdays = series.repeatWeekdays, repeatUntil = series.repeatUntil,
+                            reminderOffsetMinutes = occurrence.reminderOffsetMinutes,
+                        )
+                    } else {
+                        editorTarget = EventEditorTarget(
+                            event = series.copy(
+                                title = occurrence.title, description = occurrence.description,
+                                workspaceId = occurrence.workspaceId,
+                                reminderOffsetMinutes = occurrence.reminderOffsetMinutes,
+                            ),
+                            occurrenceStart = entry.startsAt,
+                            occurrenceEnd = entry.endsAt,
+                            originalDate = entry.originalDate,
+                        )
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    openError = "读取课次失败，请重试。"
+                } finally {
+                    opening = false
+                }
+            }
+        }
     }
     val openDeadline: (ScheduleDeadline) -> Unit = { deadline ->
         onOpenRecord(LocalRecordTarget(RecordKind.TASK, deadline.taskId))
@@ -126,6 +179,7 @@ internal fun LocalScheduleRoute(
             style = MaterialTheme.typography.bodySmall,
         )
 
+        openError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         val snapshot = state
         when {
             snapshot == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -151,6 +205,18 @@ internal fun LocalScheduleRoute(
             onDismiss = { creating = false },
             onSaved = { creating = false; reload++ },
         )
+    }
+    editorTarget?.let { target ->
+        FixedEventEditorDialog(
+            sources = sources,
+            target = target,
+            onDismiss = { editorTarget = null },
+            onSaved = { editorTarget = null; reload++ },
+            onDeleted = { editorTarget = null; reload++ },
+        )
+    }
+    readOnlyEntry?.let { details ->
+        ReadOnlyOccurrenceDialog(details, "schedule-occurrence-read-only") { readOnlyEntry = null }
     }
 }
 

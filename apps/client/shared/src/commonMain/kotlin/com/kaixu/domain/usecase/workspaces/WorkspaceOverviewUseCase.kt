@@ -3,8 +3,12 @@ package com.kaixu.domain.usecase.workspaces
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
+import com.kaixu.data.datasource.WorkspaceDataSource
 import com.kaixu.domain.model.scheduling.FixedEvent
+import com.kaixu.domain.model.scheduling.Recurrence
+import com.kaixu.domain.model.scheduling.ScheduleOccurrence
 import com.kaixu.domain.model.scheduling.WorkSession
+import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskStatus
 
@@ -31,6 +35,7 @@ data class WorkspaceOverview(
     val upcomingTasks: List<Task>,
     val fixedEvents: List<FixedEvent>,
     val workSessions: List<WorkSession>,
+    val recurringOccurrences: List<ScheduleOccurrence> = emptyList(),
 )
 
 /** 按当前本地空间查询原记录，统计和日程不受任务列表筛选影响。读取失败交由页面呈现及重试。 */
@@ -38,6 +43,7 @@ class WorkspaceOverviewUseCase(
     private val tasks: TaskDataSource,
     private val events: FixedEventDataSource,
     private val sessions: WorkSessionDataSource,
+    private val workspaces: WorkspaceDataSource,
 ) {
     suspend operator fun invoke(
         workspaceId: String,
@@ -48,12 +54,76 @@ class WorkspaceOverviewUseCase(
     ): WorkspaceOverview {
         require(workspaceId.isNotBlank()) { "请选择工作区" }
         require(ownerUserId.isNotBlank()) { "缺少当前空间的本人身份" }
+        val accessibleWorkspaceIds = workspaces.listWorkspaces(null)
+            .filter { it.ownerUserId == ownerUserId }
+            .mapTo(mutableSetOf()) { it.id }
+        require(workspaceId in accessibleWorkspaceIds) { "工作区不可用。" }
 
         val workspaceTasks = tasks.listTasksByWorkspace(workspaceId).filter { it.workspaceId == workspaceId }
         val taskIds = workspaceTasks.mapTo(mutableSetOf()) { it.id }
         val workspaceEvents = events.listEventsByWorkspace(workspaceId)
-            .filter { it.workspaceId == workspaceId }
-            .sortedWith(compareBy(FixedEvent::startsAt, FixedEvent::id))
+            .filter { it.workspaceId == workspaceId && it.seriesId == null && it.repeatWeekdays == null }
+        // 与全局日程一致：本人事件和本人空间内的共享事件可见。
+        // 课次可跨空间移动，按最终归属过滤前先保留可访问序列的例外。
+        val allEvents = events.listEvents().filter {
+            it.createdBy == ownerUserId || (it.workspaceId != null && it.workspaceId in accessibleWorkspaceIds)
+        }
+        val visibleSeriesIds = allEvents.asSequence().filter { it.seriesId == null }.map { it.id }.toSet()
+        val overrides = events.listOverridesIncludingDeleted().filter { it.seriesId != null && it.seriesId in visibleSeriesIds }
+        val windowStart = ShanghaiTime.atLocalDate(window.todayDate, 0L)
+        // 每条序列独立回溯，避免超长事件扩大其他序列的查询范围。
+        // 展开器每次最多处理 3660 天，按整日分段才能覆盖更长的重叠区间。
+        val expanded = allEvents.asSequence()
+            .filter { it.seriesId == null && it.repeatWeekdays != null && it.endsAt > it.startsAt }
+            .flatMap { series ->
+                val until = series.repeatUntil ?: return@flatMap emptySequence()
+                val recurrenceEnd = minOf(window.upcomingEndMillisExclusive,
+                    ShanghaiTime.atLocalDate(until, 0L) + 24L * 60 * 60 * 1000)
+                val duration = if (series.startsAt < 0 && series.endsAt > Long.MAX_VALUE + series.startsAt)
+                    Long.MAX_VALUE else series.endsAt - series.startsAt
+                val overlapStart = if (windowStart < Long.MIN_VALUE + duration) Long.MIN_VALUE else windowStart - duration
+                var start = maxOf(series.startsAt, overlapStart)
+                val result = mutableListOf<ScheduleOccurrence>()
+                while (start < recurrenceEnd) {
+                    val startDate = ShanghaiTime.localDateOf(start)
+                    val endDate = ShanghaiTime.localDateOf(recurrenceEnd - 1)
+                    val end = if (ShanghaiTime.daysBetween(startDate, endDate) < 3000) {
+                        recurrenceEnd
+                    } else {
+                        ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(startDate, 3000), 0L)
+                    }
+                    result += Recurrence.expand(listOf(series), overrides, start, end)
+                    start = end
+                }
+                result.asSequence()
+            }.toList()
+        val records = (allEvents + overrides.filterNot { it.isCancelled }).associateBy { it.id }
+        // 例外可从窗口外移入；仅遍历窗口内的原定日期时，展开器不会返回这种课次。
+        val movedIntoWindow = overrides.mapNotNull { override ->
+            val seriesId = override.seriesId ?: return@mapNotNull null
+            val date = override.originalDate ?: return@mapNotNull null
+            if (override.isCancelled || (date >= window.todayDate && date < window.upcomingEndDateExclusive)) return@mapNotNull null
+            val series = records[seriesId] ?: return@mapNotNull null
+            val weekdays = series.repeatWeekdays ?: return@mapNotNull null
+            val until = series.repeatUntil ?: return@mapNotNull null
+            if (date < ShanghaiTime.localDateOf(series.startsAt) || date > until || ShanghaiTime.isoWeekday(date) !in weekdays) return@mapNotNull null
+            ScheduleOccurrence(
+                key = "$seriesId@$date", eventId = override.id, title = override.title,
+                startsAt = override.startsAt, endsAt = override.endsAt, description = override.description,
+                workspaceId = override.workspaceId, createdBy = override.createdBy,
+                reminderOffsetMinutes = override.reminderOffsetMinutes, seriesId = seriesId, originalDate = date,
+            )
+        }
+        val recurring = (expanded + movedIntoWindow)
+            .filter { it.seriesId != null && it.workspaceId == workspaceId &&
+                it.startsAt < window.upcomingEndMillisExclusive && it.endsAt > windowStart }
+            .distinctBy { it.key }.sortedWith(compareBy({ it.startsAt }, { it.key }))
+        val occurrenceEvents = recurring.mapNotNull { occurrence ->
+            records[occurrence.eventId]?.copy(
+                title = occurrence.title, startsAt = occurrence.startsAt, endsAt = occurrence.endsAt,
+                description = occurrence.description, workspaceId = occurrence.workspaceId,
+            )
+        }
         val personalSessions = sessions.listWorkSessions()
             .filter { it.ownerUserId == ownerUserId && it.taskId != null && it.taskId in taskIds }
             .sortedWith(compareBy(WorkSession::startsAt, WorkSession::id))
@@ -70,8 +140,9 @@ class WorkspaceOverviewUseCase(
             upcomingTasks = workspaceTasks.filter {
                 it.status != TaskStatus.COMPLETED && matchesDeadline(it, WorkspaceDeadlineFilter.NEXT_SEVEN_DAYS, window)
             },
-            fixedEvents = workspaceEvents,
+            fixedEvents = (workspaceEvents + occurrenceEvents).sortedWith(compareBy(FixedEvent::startsAt, FixedEvent::id)),
             workSessions = personalSessions,
+            recurringOccurrences = recurring,
         )
     }
 
