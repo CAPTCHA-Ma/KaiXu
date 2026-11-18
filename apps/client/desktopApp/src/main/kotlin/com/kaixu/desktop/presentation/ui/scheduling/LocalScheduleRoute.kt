@@ -58,7 +58,7 @@ internal fun LocalScheduleRoute(
     var reload by remember { mutableIntStateOf(0) }
     var creating by remember { mutableStateOf(false) }
     var editorTarget by remember { mutableStateOf<EventEditorTarget?>(null) }
-    var readOnlyEntry by remember { mutableStateOf<ScheduleEntry?>(null) }
+    var readOnlyEntry by remember { mutableStateOf<ReadOnlyOccurrenceDetails?>(null) }
     var opening by remember { mutableStateOf(false) }
     var openError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -106,7 +106,13 @@ internal fun LocalScheduleRoute(
                         series.createdBy != LOCAL_ACTOR_ID || occurrence.createdBy != LOCAL_ACTOR_ID ||
                         occurrence.workspaceId != entry.workspaceId ||
                         !editableWorkspace(series.workspaceId) || !editableWorkspace(occurrence.workspaceId)) {
-                        readOnlyEntry = entry
+                        readOnlyEntry = ReadOnlyOccurrenceDetails(
+                            title = entry.title, description = occurrence.description,
+                            startsAt = entry.startsAt, endsAt = entry.endsAt,
+                            workspaceName = entry.workspaceName ?: if (entry.workspaceId == null) "独立事件" else "关联工作区暂不可用",
+                            weekdays = series.repeatWeekdays, repeatUntil = series.repeatUntil,
+                            reminderOffsetMinutes = occurrence.reminderOffsetMinutes,
+                        )
                     } else {
                         editorTarget = EventEditorTarget(
                             event = series.copy(
@@ -209,14 +215,8 @@ internal fun LocalScheduleRoute(
             onDeleted = { editorTarget = null; reload++ },
         )
     }
-    readOnlyEntry?.let { entry ->
-        AlertDialog(
-            onDismissRequest = { readOnlyEntry = null },
-            modifier = Modifier.testTag("schedule-occurrence-read-only"),
-            title = { Text(entry.title) },
-            text = { Text("${localMoment(entry.startsAt)} — ${localMoment(entry.endsAt)}\n此课次只读。") },
-            confirmButton = { TextButton(onClick = { readOnlyEntry = null }) { Text("关闭") } },
-        )
+    readOnlyEntry?.let { details ->
+        ReadOnlyOccurrenceDialog(details, "schedule-occurrence-read-only") { readOnlyEntry = null }
     }
 }
 

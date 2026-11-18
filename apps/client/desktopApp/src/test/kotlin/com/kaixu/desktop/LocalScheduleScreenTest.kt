@@ -165,6 +165,7 @@ class LocalScheduleScreenTest {
             val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "只读课程")
             val archivedEvent = sources.fixedEvents.createEvent(FixedEvent(
                 newLocalId(), "归档重复课程", at(9), at(10), workspaceId = workspace.id,
+                description = "课程地点：教室 A", reminderOffsetMinutes = 15,
                 repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
             ))
             sources.workspaces.archiveWorkspace(workspace.id)
@@ -181,7 +182,10 @@ class LocalScheduleScreenTest {
         awaitTag(archivedTag)
         clickTag(archivedTag)
         awaitTag("schedule-occurrence-read-only")
-        compose.onNodeWithText("此课次只读。", substring = true).assertExists()
+        compose.onNodeWithText("该课次只读。", substring = true).assertExists()
+        compose.onNodeWithText("说明：课程地点：教室 A").assertExists()
+        compose.onNodeWithText("所属工作区：只读课程").assertExists()
+        compose.onNodeWithText("站内提醒：提前 15 分钟").assertExists()
         compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
         click("关闭")
         val sharedTag = "schedule-entry-${shared.id}@$today"

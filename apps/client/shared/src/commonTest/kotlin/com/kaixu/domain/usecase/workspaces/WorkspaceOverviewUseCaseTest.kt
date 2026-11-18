@@ -3,6 +3,10 @@ package com.kaixu.domain.usecase.workspaces
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
+import com.kaixu.data.datasource.WorkspaceDataSource
+import com.kaixu.domain.model.workspaces.Workspace
+import com.kaixu.domain.model.workspaces.WorkspaceKind
+import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.tasks.Task
@@ -46,7 +50,7 @@ class WorkspaceOverviewUseCaseTest {
             workspaceId = "course", originalDate = "2026-11-13", isCancelled = true)
         val otherSeries = series.copy(id = "other-series", title = "移动进入", workspaceId = "other", repeatWeekdays = setOf(3))
         val movedIn = movedOut.copy(id = "moved-in", title = "移动进入", workspaceId = "course", seriesId = "other-series")
-        val foreign = series.copy(id = "foreign", createdBy = "someone-else")
+        val foreign = series.copy(id = "foreign", workspaceId = "unowned", createdBy = "someone-else")
         source.events = listOf(series, movedOut, otherSeries, movedIn, foreign)
         source.cancelledOverrides = listOf(cancelled)
 
@@ -55,6 +59,30 @@ class WorkspaceOverviewUseCaseTest {
         assertEquals(listOf("series@2026-11-09", "other-series@2026-11-11"), result.recurringOccurrences.map { it.key })
         assertEquals(listOf("series", "moved-in"), result.fixedEvents.map { it.id })
         assertEquals("course", result.recurringOccurrences.last().workspaceId)
+    }
+
+    @Test
+    fun sharedSeriesAndMovedOverridesRespectOwnedWorkspaceBoundaries() = runTest {
+        val source = ReadOnlySources()
+        fun time(date: String) = ShanghaiTime.atLocalDate(date, 9 * 60 * 60 * 1000L)
+        val shared = FixedEvent("shared", "共享课", time("2026-11-02"), time("2026-11-02") + 3_600_000L,
+            workspaceId = "course", createdBy = "other-user", repeatWeekdays = setOf(1, 3, 5), repeatUntil = "2026-11-30")
+        val movedOut = shared.copy(id = "out", startsAt = time("2026-11-11"), endsAt = time("2026-11-11") + 3_600_000L,
+            workspaceId = "unowned", repeatWeekdays = null, repeatUntil = null, seriesId = shared.id, originalDate = "2026-11-11", isOverride = true)
+        val cancelled = movedOut.copy(id = "cancel", workspaceId = "course", originalDate = "2026-11-13", isCancelled = true)
+        val second = shared.copy(id = "second", workspaceId = "other", repeatWeekdays = setOf(3))
+        val movedIn = movedOut.copy(id = "in", title = "移动来的共享课", workspaceId = "course", seriesId = second.id)
+        val privateSeries = shared.copy(id = "private", workspaceId = "unowned")
+        val privateMovedIn = movedIn.copy(id = "private-in", title = "无权查看的序列", seriesId = privateSeries.id)
+        source.events = listOf(shared, movedOut, second, movedIn, privateSeries, privateMovedIn)
+        source.cancelledOverrides = listOf(cancelled)
+
+        val result = source.useCase()("course", "me", window)
+
+        assertEquals(listOf("shared@2026-11-09", "second@2026-11-11"), result.recurringOccurrences.map { it.key })
+        assertEquals(listOf("shared", "in"), result.fixedEvents.map { it.id })
+        assertTrue(result.recurringOccurrences.all { it.createdBy == "other-user" })
+        assertFailsWith<IllegalArgumentException> { source.useCase()("unowned", "me", window) }
     }
 
     @Test
@@ -212,7 +240,7 @@ class WorkspaceOverviewUseCaseTest {
     private fun List<Task>.ids() = map { it.id }.toSet()
 
     /** 刻意让读取返回越界记录，验证聚合入口仍检查工作区与本人；任何写调用都会让测试失败。 */
-    private class ReadOnlySources : TaskDataSource, FixedEventDataSource, WorkSessionDataSource {
+    private class ReadOnlySources : TaskDataSource, FixedEventDataSource, WorkSessionDataSource, WorkspaceDataSource {
         var tasks = emptyList<Task>()
         var events = emptyList<FixedEvent>()
         var cancelledOverrides = emptyList<FixedEvent>()
@@ -221,7 +249,17 @@ class WorkspaceOverviewUseCaseTest {
         val taskQueries = mutableListOf<String>()
         val eventQueries = mutableListOf<String>()
 
-        fun useCase() = WorkspaceOverviewUseCase(this, this, this)
+        fun useCase() = WorkspaceOverviewUseCase(this, this, this, this)
+
+        override suspend fun listWorkspaces(status: WorkspaceStatus?) = listOf("course", "other").map {
+            Workspace(it, "me", WorkspaceKind.COURSE, it, null, null, WorkspaceStatus.ACTIVE, 0L, 0L, null)
+        }
+        override suspend fun findWorkspaceById(id: String) = listWorkspaces(null).firstOrNull { it.id == id }
+        override suspend fun listProjectsForCourse(courseId: String, status: WorkspaceStatus?) = emptyList<Workspace>()
+        override suspend fun createWorkspace(kind: WorkspaceKind, name: String, description: String?, linkedCourseId: String?): Workspace = error("概览不能创建工作区")
+        override suspend fun updateWorkspace(id: String, name: String, description: String?, linkedCourseId: String?) = error("概览不能修改工作区")
+        override suspend fun archiveWorkspace(id: String) = error("概览不能归档工作区")
+        override suspend fun restoreWorkspace(id: String) = error("概览不能恢复工作区")
 
         override suspend fun listTasksByWorkspace(workspaceId: String): List<Task> {
             failure?.let { throw it }

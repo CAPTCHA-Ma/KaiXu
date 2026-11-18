@@ -13,7 +13,8 @@ import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
 import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
-import com.kaixu.domain.model.scheduling.ScheduleOccurrence
+import com.kaixu.desktop.presentation.ui.scheduling.ReadOnlyOccurrenceDetails
+import com.kaixu.desktop.presentation.ui.scheduling.ReadOnlyOccurrenceDialog
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.usecase.workspaces.WorkspaceDeadlineFilter
@@ -52,7 +53,7 @@ fun WorkspaceOverviewRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var eventTarget by remember(workspaceId) { mutableStateOf<EventEditorTarget?>(null) }
-    var readOnlyOccurrence by remember(workspaceId) { mutableStateOf<ScheduleOccurrence?>(null) }
+    var readOnlyOccurrence by remember(workspaceId) { mutableStateOf<ReadOnlyOccurrenceDetails?>(null) }
     var eventError by remember(workspaceId) { mutableStateOf<String?>(null) }
     var openingEvent by remember(workspaceId) { mutableStateOf(false) }
     LaunchedEffect(workspaceId) { viewModel.refresh(workspaceId) }
@@ -165,7 +166,13 @@ fun WorkspaceOverviewRoute(
                                                     currentWorkspace.status == WorkspaceStatus.ACTIVE &&
                                                     (row.workspaceId == null || (seriesWorkspace?.ownerUserId == LOCAL_ACTOR_ID &&
                                                         seriesWorkspace.status == WorkspaceStatus.ACTIVE))
-                                                if (!canEdit) readOnlyOccurrence = occurrence
+                                                if (!canEdit) readOnlyOccurrence = ReadOnlyOccurrenceDetails(
+                                                    title = occurrence.title, description = occurrence.description,
+                                                    startsAt = occurrence.startsAt, endsAt = occurrence.endsAt,
+                                                    workspaceName = currentWorkspace?.name ?: "关联工作区暂不可用",
+                                                    weekdays = row.repeatWeekdays, repeatUntil = row.repeatUntil,
+                                                    reminderOffsetMinutes = occurrence.reminderOffsetMinutes,
+                                                )
                                                 else eventTarget = EventEditorTarget(
                                                     row.copy(title = occurrence.title, description = occurrence.description,
                                                         workspaceId = occurrence.workspaceId,
@@ -196,13 +203,8 @@ fun WorkspaceOverviewRoute(
             }
         }
     }
-    readOnlyOccurrence?.let { occurrence ->
-        AlertDialog(
-            onDismissRequest = { readOnlyOccurrence = null },
-            title = { Text(occurrence.title) },
-            text = { Text("${localMoment(occurrence.startsAt)} — ${localMoment(occurrence.endsAt)}\n该课次只读。", modifier = Modifier.testTag("overview-occurrence-read-only")) },
-            confirmButton = { TextButton(onClick = { readOnlyOccurrence = null }) { Text("关闭") } },
-        )
+    readOnlyOccurrence?.let { details ->
+        ReadOnlyOccurrenceDialog(details, "overview-occurrence-read-only") { readOnlyOccurrence = null }
     }
     eventTarget?.let { target ->
         FixedEventEditorDialog(

@@ -177,6 +177,34 @@ class WorkspaceOverviewScreenTest {
     }
 
     @Test
+    fun sharedRecurringOccurrenceInOwnedWorkspaceIsVisibleAndReadOnly() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val (course, series) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "共享课程工作区")
+            val event = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "共享每周课", first, first + 3_600_000L,
+                workspaceId = workspace.id, createdBy = "other-user",
+                repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            workspace to event
+        }
+        startApp()
+        clickTag("nav-workspaces")
+        awaitEnabled("新建工作区")
+        clickTag("workspace-card-${course.id}")
+        val occurrenceTag = "overview-event-${series.id}@$today"
+        awaitTag(occurrenceTag)
+        compose.onNodeWithTag(occurrenceTag).assertTextContains("共享每周课", substring = true)
+        clickTag(occurrenceTag, scroll = true)
+        awaitTag("overview-occurrence-read-only")
+        compose.onNodeWithTag("overview-occurrence-read-only").assertTextContains("该课次只读。", substring = true)
+        compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
+        assertEquals(series, runBlocking { sources.fixedEvents.findEventById(series.id) })
+    }
+
+    @Test
     fun occurrenceMovedFromActiveSeriesToArchivedWorkspaceIsReadOnly() {
         val zone = ZoneId.of("Asia/Shanghai")
         val today = LocalDate.now(zone)

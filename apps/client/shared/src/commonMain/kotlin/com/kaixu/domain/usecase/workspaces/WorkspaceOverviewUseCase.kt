@@ -3,6 +3,7 @@ package com.kaixu.domain.usecase.workspaces
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
+import com.kaixu.data.datasource.WorkspaceDataSource
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.Recurrence
 import com.kaixu.domain.model.scheduling.ScheduleOccurrence
@@ -42,6 +43,7 @@ class WorkspaceOverviewUseCase(
     private val tasks: TaskDataSource,
     private val events: FixedEventDataSource,
     private val sessions: WorkSessionDataSource,
+    private val workspaces: WorkspaceDataSource,
 ) {
     suspend operator fun invoke(
         workspaceId: String,
@@ -52,14 +54,22 @@ class WorkspaceOverviewUseCase(
     ): WorkspaceOverview {
         require(workspaceId.isNotBlank()) { "请选择工作区" }
         require(ownerUserId.isNotBlank()) { "缺少当前空间的本人身份" }
+        val accessibleWorkspaceIds = workspaces.listWorkspaces(null)
+            .filter { it.ownerUserId == ownerUserId }
+            .mapTo(mutableSetOf()) { it.id }
+        require(workspaceId in accessibleWorkspaceIds) { "工作区不可用。" }
 
         val workspaceTasks = tasks.listTasksByWorkspace(workspaceId).filter { it.workspaceId == workspaceId }
         val taskIds = workspaceTasks.mapTo(mutableSetOf()) { it.id }
         val workspaceEvents = events.listEventsByWorkspace(workspaceId)
             .filter { it.workspaceId == workspaceId && it.seriesId == null && it.repeatWeekdays == null }
-        // 一次课次可移动到另一个工作区，因此先展开本人所有序列，再按课次的最终归属过滤。
-        val allEvents = events.listEvents().filter { it.createdBy == ownerUserId }
-        val overrides = events.listOverridesIncludingDeleted().filter { it.createdBy == ownerUserId }
+        // 与全局日程一致：本人事件和本人空间内的共享事件可见。
+        // 课次可跨空间移动，按最终归属过滤前先保留可访问序列的例外。
+        val allEvents = events.listEvents().filter {
+            it.createdBy == ownerUserId || (it.workspaceId != null && it.workspaceId in accessibleWorkspaceIds)
+        }
+        val visibleSeriesIds = allEvents.asSequence().filter { it.seriesId == null }.map { it.id }.toSet()
+        val overrides = events.listOverridesIncludingDeleted().filter { it.seriesId != null && it.seriesId in visibleSeriesIds }
         val windowStart = ShanghaiTime.atLocalDate(window.todayDate, 0L)
         // 每条序列独立回溯，避免超长事件扩大其他序列的查询范围。
         // 展开器每次最多处理 3660 天，按整日分段才能覆盖更长的重叠区间。
@@ -87,7 +97,7 @@ class WorkspaceOverviewUseCase(
                 }
                 result.asSequence()
             }.toList()
-        val records = allEvents.associateBy { it.id }
+        val records = (allEvents + overrides.filterNot { it.isCancelled }).associateBy { it.id }
         // 例外可从窗口外移入；仅遍历窗口内的原定日期时，展开器不会返回这种课次。
         val movedIntoWindow = overrides.mapNotNull { override ->
             val seriesId = override.seriesId ?: return@mapNotNull null

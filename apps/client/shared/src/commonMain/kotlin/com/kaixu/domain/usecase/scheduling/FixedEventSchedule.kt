@@ -103,6 +103,23 @@ class FixedEventSchedule(
                 .firstOrNull { it.seriesId == current.id && it.originalDate == originalDate }
                 ?.also { if (!it.isCancelled) excludeIds += it.id }
         } else null
+        if (current.repeatWeekdays != null && originalDate != null && scope == EditScope.THIS_AND_FUTURE) {
+            require(ShanghaiTime.compareDates(ShanghaiTime.localDateOf(normalized.startsAt), originalDate) >= 0) {
+                "本次及后续的开始日期不能早于所选课次原定日期；如需提前，请选择仅本次。"
+            }
+            val weekdays = normalized.repeatWeekdays ?: current.repeatWeekdays
+            require(ShanghaiTime.isoWeekday(ShanghaiTime.localDateOf(normalized.startsAt)) in weekdays) {
+                "本次开始日期的星期不在重复规则中，请调整开始日期或重复星期。"
+            }
+            // Existing exceptions (including cancelled occurrences) belong to the old series.
+            // Splitting without migrating them would silently lose their visible effect.
+            val hasAffectedOverride = events.listOverridesIncludingDeleted().any {
+                it.seriesId == current.id && it.originalDate?.let { date ->
+                    ShanghaiTime.compareDates(date, originalDate) >= 0
+                } == true
+            }
+            require(!hasAffectedOverride) { "本次或后续存在已修改或取消的课次，暂不支持批量修改；可改为仅修改本次。" }
+        }
         requireAffectedOverrideWorkspaces(current, originalDate, scope)
         val excludeSeriesId = if (originalDate != null) current.id else null
         val conflicts = findConflicts(ranges, excludeIds, excludeSeriesId)
@@ -152,7 +169,13 @@ class FixedEventSchedule(
             }
             else -> {
                 // 截断旧序列，再以所选课次为新起点建立后续序列。
-                check(events.truncateSeriesUntil(current.id, ShanghaiTime.plusDays(originalDate, -1))) {
+                val dayBefore = ShanghaiTime.plusDays(originalDate, -1)
+                val oldSeriesChanged = if (ShanghaiTime.compareDates(dayBefore, ShanghaiTime.localDateOf(current.startsAt)) < 0) {
+                    events.deleteEventById(current.id)
+                } else {
+                    events.truncateSeriesUntil(current.id, dayBefore)
+                }
+                check(oldSeriesChanged) {
                     "序列已不可用，请刷新后重试。"
                 }
                 val next = events.createEvent(
