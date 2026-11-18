@@ -21,6 +21,7 @@ import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.data.datasource.local.entity.newLocalId
 import com.kaixu.desktop.app.DesktopApp
+import com.kaixu.desktop.presentation.ui.scheduling.formatEventEditTime
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.tasks.Task
@@ -31,6 +32,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 
@@ -85,6 +88,109 @@ class LocalScheduleScreenTest {
 
     private fun at(hour: Int): Long =
         LocalDate.now(zone).atTime(hour, 0).atZone(zone).toInstant().toEpochMilli()
+
+    @Test
+    fun recurringOccurrenceEditsItsSelectedDateAndPreservesExceptionFields() {
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val (series, exception) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "课程")
+            val event = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "系列课程", first, first + 3_600_000L,
+                workspaceId = workspace.id, reminderOffsetMinutes = 5,
+                repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            val override = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "本次课程", at(10), at(11), description = "本次说明",
+                workspaceId = workspace.id, reminderOffsetMinutes = 30,
+                seriesId = event.id, originalDate = today.toString(), isOverride = true,
+            ))
+            event to override
+        }
+        startApp()
+        clickTag("nav-schedule")
+        val occurrenceTag = "schedule-entry-${series.id}@$today"
+        awaitTag(occurrenceTag)
+        clickTag(occurrenceTag)
+        awaitTag("event-editor-title")
+        compose.onNodeWithTag("event-editor-title").assertTextContains("本次课程")
+        compose.onNodeWithTag("event-editor-description").assertTextContains("本次说明")
+        compose.onNodeWithTag("event-editor-start").assertTextContains(formatEventEditTime(at(10)))
+        compose.onNodeWithTag("event-editor-reminder").assertTextEquals("站内提醒：提前 30 分钟")
+        compose.onNodeWithTag("event-editor-title").performTextReplacement("更新本次课程")
+        clickTag("event-editor-save")
+        compose.waitUntil(5_000) {
+            runBlocking { sources.fixedEvents.findEventById(exception.id)?.title == "更新本次课程" }
+        }
+        val saved = runBlocking { sources.fixedEvents.findEventById(exception.id) }
+        assertEquals("本次说明", saved?.description)
+        assertEquals(30, saved?.reminderOffsetMinutes)
+        assertEquals("系列课程", runBlocking { sources.fixedEvents.findEventById(series.id)?.title })
+    }
+
+    @Test
+    fun cancellingRecurringOccurrenceKeepsSeriesAndOtherDates() {
+        val today = LocalDate.now(zone)
+        val first = today.minusWeeks(1).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
+        val series = runBlocking {
+            sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "周课程", first, first + 3_600_000L,
+                repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+        }
+        startApp()
+        clickTag("nav-schedule")
+        val tag = "schedule-entry-${series.id}@$today"
+        awaitTag(tag)
+        clickTag(tag)
+        awaitTag("event-editor-start")
+        compose.onNodeWithTag("event-editor-start").assertTextContains(formatEventEditTime(at(9)))
+        compose.onNodeWithText("修改范围").assertExists()
+        clickTag("event-editor-delete")
+        awaitTag("event-delete-dialog")
+        click("确认删除")
+        compose.waitUntil(5_000) {
+            runBlocking { sources.fixedEvents.listOverridesIncludingDeleted().any {
+                it.seriesId == series.id && it.originalDate == today.toString() && it.isCancelled
+            } }
+        }
+        assertNotNull(runBlocking { sources.fixedEvents.findEventById(series.id) })
+        awaitTag("schedule-empty")
+    }
+
+    @Test
+    fun archivedAndSharedRecurringOccurrencesRemainReadOnly() {
+        val today = LocalDate.now(zone)
+        val (archived, shared) = runBlocking {
+            val workspace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "只读课程")
+            val archivedEvent = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "归档重复课程", at(9), at(10), workspaceId = workspace.id,
+                repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            sources.workspaces.archiveWorkspace(workspace.id)
+            val active = sources.workspaces.createWorkspace(WorkspaceKind.PROJECT, "共享项目")
+            val sharedEvent = sources.fixedEvents.createEvent(FixedEvent(
+                newLocalId(), "共享重复课程", at(10), at(11), workspaceId = active.id, createdBy = "bob",
+                repeatWeekdays = setOf(today.dayOfWeek.value), repeatUntil = today.plusWeeks(1).toString(),
+            ))
+            archivedEvent to sharedEvent
+        }
+        startApp()
+        clickTag("nav-schedule")
+        val archivedTag = "schedule-entry-${archived.id}@$today"
+        awaitTag(archivedTag)
+        clickTag(archivedTag)
+        awaitTag("schedule-occurrence-read-only")
+        compose.onNodeWithText("此课次只读。", substring = true).assertExists()
+        compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
+        click("关闭")
+        val sharedTag = "schedule-entry-${shared.id}@$today"
+        awaitTag(sharedTag)
+        clickTag(sharedTag)
+        awaitTag("schedule-occurrence-read-only")
+        compose.onNodeWithTag("event-editor-dialog").assertDoesNotExist()
+        assertNotNull(runBlocking { sources.fixedEvents.findEventById(archived.id) })
+    }
 
     @Test
     fun scheduleAggregatesTypesFiltersByWorkspaceAndOpensDetails() {

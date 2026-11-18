@@ -6,7 +6,7 @@
 
 **下一条编号为 V15。**
 
-- **V14 · 2026-11-18 · 工作区重复课次与 UC09 日程浏览集成（待审核）**。纳入已合并的 [PR #30](https://github.com/CAPTCHA-Ma/KaiXu/pull/30) 的全局及工作区日程浏览，保留 [PR #25](https://github.com/CAPTCHA-Ma/KaiXu/pull/25) 的工作区近期重复课次与单次编辑；归档或无权编辑的重复课次只读，并在保存或取消时复核工作区状态。数据库结构不变；自动化验证结果以 PR #25 的 GitHub Actions 为准，既有 Windows 实测见 V11。
+- **V14 · 2026-11-18 · 工作区重复课次与 UC09 日程浏览集成（待审核）**。纳入已合并的 [PR #30](https://github.com/CAPTCHA-Ma/KaiXu/pull/30) 的全局及工作区日程浏览，保留 [PR #25](https://github.com/CAPTCHA-Ma/KaiXu/pull/25) 的工作区近期重复课次与单次编辑，并修复全局日程打开重复课次时丢失选中日期的问题；归档或无权编辑的重复课次只读，并在保存或取消时复核工作区状态。数据库结构不变；自动化验证结果以 PR #25 的 GitHub Actions 为准，既有 Windows 实测见 V11。
 
 - **V13 · 2026-11-16 · Windows 桌面文字清晰度**。Windows 桌面主题使用系统 Microsoft YaHei UI 字体，统一常用文字样式，并让工作区名称沿用主题字体，减轻中英文回退字体和衬线字体混用造成的观感差异；字号、语义颜色及其他平台原有字体不变，字体不可用时由系统回退，数据库结构不变。在 Windows 11、JBR 21.0.9 上启动桌面版，检查任务、工作区、日程与工作区新建弹窗的普通内容显示。[桌面主题](apps/client/desktopApp/src/main/kotlin/com/kaixu/desktop/presentation/theme/KaiXuTheme.kt)。
 
