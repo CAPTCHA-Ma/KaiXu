@@ -18,7 +18,9 @@ import com.kaixu.desktop.presentation.ui.settings.SettingsScreen
 import com.kaixu.desktop.presentation.ui.home.HomeScreen
 import com.kaixu.desktop.presentation.ui.home.HomeRoute
 import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
+import com.kaixu.domain.repository.SchedulingTransaction
 import com.kaixu.domain.usecase.scheduling.AgendaUseCase
+import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
 import com.kaixu.desktop.presentation.ui.tasks.TaskEditorRoute
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
@@ -99,8 +101,19 @@ fun DesktopNavigation(
                 else {
                     val home = viewModel<HomeViewModel>(viewModelStoreOwner = entry) {
                         HomeViewModel(
-                            AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
-                            LOCAL_ACTOR_ID,
+                            agenda = AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
+                            ownerUserId = LOCAL_ACTOR_ID,
+                            workspaces = sources.workspaces,
+                            taskUseCases = graph.taskUseCases,
+                            fixedEventSchedule = FixedEventSchedule(
+                                sources.fixedEvents,
+                                sources.workSessions,
+                                sources.workspaces,
+                                LOCAL_ACTOR_ID,
+                                object : SchedulingTransaction {
+                                    override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
+                                },
+                            ),
                         )
                     }
                     HomeRoute(home, onOpenRecord = openRecord,

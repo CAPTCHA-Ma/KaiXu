@@ -30,11 +30,22 @@ fun HomeRoute(
             }
         }
     }
-    HomeScreen(state, onRefresh = viewModel::refresh, onOpenSchedule = onOpenSchedule, onOpenEntry = { entry ->
-        onOpenRecord(LocalRecordTarget(when (entry.kind) {
-            AgendaKind.TASK_DEADLINE -> RecordKind.TASK
-            AgendaKind.FIXED_EVENT -> RecordKind.EVENT
-            AgendaKind.WORK_SESSION -> RecordKind.SESSION
-        }, entry.recordId))
-    })
+    HomeScreen(
+        state = state,
+        onRefresh = viewModel::refresh,
+        onOpenSchedule = onOpenSchedule,
+        onOpenEntry = { entry ->
+            onOpenRecord(
+                LocalRecordTarget(
+                    when (entry.kind) {
+                        AgendaKind.TASK_DEADLINE -> RecordKind.TASK
+                        AgendaKind.FIXED_EVENT -> RecordKind.EVENT
+                        AgendaKind.WORK_SESSION -> RecordKind.SESSION
+                    },
+                    entry.recordId,
+                ),
+            )
+        },
+        onQuickCreate = { request, confirmed -> viewModel.createQuickItem(request, confirmed) },
+    )
 }

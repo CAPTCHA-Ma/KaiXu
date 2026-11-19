@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,13 +13,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -39,14 +44,13 @@ import com.kaixu.domain.usecase.scheduling.AgendaEntry
 import com.kaixu.domain.usecase.scheduling.AgendaKind
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 
-/** 卡片所处的时间阶段，只决定装饰色，不改变纸面底色。 */
+/** 卡片所处的时间阶段，主要决定装饰色与进行中微光，卡面统一保持灰白毛玻璃质感。 */
 private enum class AgendaPhase { PAST, ONGOING, UPCOMING }
 
-private val TimeStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium,
-    letterSpacing = .6.sp, fontFeatureSettings = "tnum")
-private val TimeEndStyle = TextStyle(fontSize = 11.sp, letterSpacing = .4.sp, fontFeatureSettings = "tnum")
-private val TitleStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = .3.sp)
-private val MetaStyle = TextStyle(fontSize = 11.5.sp, letterSpacing = .5.sp)
+private val TimeStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
+private val TimeEndStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum")
+private val TitleStyle = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+private val MetaStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium)
 
 /**
  * 首页卡片：左侧是安静的时间刻度，右侧标题承担视觉重心，中间的引线把两者连起来，
@@ -96,39 +100,101 @@ internal fun AgendaCard(entry: AgendaEntry, now: Long, today: String, onOpen: (A
         else -> "截止"
     }
 
+    val cardShape = RoundedCornerShape(HomeAgendaStyle.CardRadius)
+    val outerBorderBrush = if (phase == AgendaPhase.ONGOING) {
+        Brush.verticalGradient(
+            listOf(
+                lerp(HomeAgendaStyle.CardBorderTop, HomeAgendaStyle.Ongoing, .24f),
+                lerp(HomeAgendaStyle.CardBorderBottom, HomeAgendaStyle.Ongoing, .16f),
+            ),
+        )
+    } else {
+        Brush.verticalGradient(
+            listOf(
+                HomeAgendaStyle.CardBorderTop,
+                HomeAgendaStyle.CardBorderBottom,
+            ),
+        )
+    }
+
     Surface(
         modifier = modifier.testTag("home-agenda-${entry.key}").clickable(
             interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button,
             onClick = { onOpen(entry) },
         ),
-        shape = RoundedCornerShape(HomeAgendaStyle.CardRadius),
+        shape = cardShape,
         color = HomeAgendaStyle.CardSurface,
-        border = BorderStroke(1.dp,
-            if (phase == AgendaPhase.ONGOING) HomeAgendaStyle.Ongoing.copy(alpha = .18f) else HomeAgendaStyle.CardBorder),
+        border = BorderStroke(1.dp, outerBorderBrush),
     ) {
-        AgendaCardLayout(
-            modifier = Modifier.fillMaxSize().padding(start = 30.dp, end = 32.dp),
-            start = {
-                Text(startLabel, style = TimeStyle,
-                    color = if (phase == AgendaPhase.PAST) HomeAgendaStyle.PastText else accent, maxLines = 1)
-            },
-            end = { Text(endLabel, style = TimeEndStyle, color = HomeAgendaStyle.Muted, maxLines = 1) },
-            leader = { AgendaLeader(phase, entry.kind, accent, progress) },
-            title = {
-                Text(entry.title, style = TitleStyle, textAlign = TextAlign.End,
-                    color = if (phase == AgendaPhase.PAST) HomeAgendaStyle.TitleFaded else HomeAgendaStyle.Text,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            },
-            meta = {
-                val meta = buildAnnotatedString {
-                    status?.let { withStyle(SpanStyle(color = statusColor)) { append(it) }; append("   ") }
-                    append(listOfNotNull(kindLabel, dayLabel, entry.workspace).joinToString("  ·  "))
-                }
-                Text(meta, style = MetaStyle, color = HomeAgendaStyle.Muted, textAlign = TextAlign.End,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            },
-        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind { drawFrostedGlassCard() },
+        ) {
+            AgendaCardLayout(
+                modifier = Modifier.fillMaxSize().padding(start = 30.dp, end = 32.dp),
+                start = {
+                    Text(startLabel, style = TimeStyle,
+                        color = if (phase == AgendaPhase.PAST) HomeAgendaStyle.PastText else accent, maxLines = 1)
+                },
+                end = { Text(endLabel, style = TimeEndStyle, color = HomeAgendaStyle.Muted, maxLines = 1) },
+                leader = { AgendaLeader(phase, entry.kind, accent, progress) },
+                title = {
+                    Text(entry.title, style = TitleStyle, textAlign = TextAlign.End,
+                        color = if (phase == AgendaPhase.PAST) HomeAgendaStyle.TitleFaded else HomeAgendaStyle.Text,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                },
+                meta = {
+                    val meta = buildAnnotatedString {
+                        status?.let { withStyle(SpanStyle(color = statusColor)) { append(it) }; append("   ") }
+                        append(listOfNotNull(kindLabel, dayLabel, entry.workspace).joinToString("  ·  "))
+                    }
+                    Text(meta, style = MetaStyle, color = HomeAgendaStyle.Muted, textAlign = TextAlign.End,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                },
+            )
+        }
     }
+}
+
+/**
+ * 极浅扁平毛玻璃卡面：
+ * 1) 接近纯白背景的扁平浅雾基底（纵向变化克制在极小范围内）；
+ * 2) 左上至中段的柔光漫射折光层；
+ * 3) 1.1 dp 纯白内壁高光倒角与 1 dp 冷银外细边配合悬浮阴影，在纯白面板上形成轻盈通透的分层。
+ */
+private fun DrawScope.drawFrostedGlassCard() {
+    drawRect(
+        brush = Brush.verticalGradient(
+            0f to HomeAgendaStyle.CardGlassTop,
+            .50f to HomeAgendaStyle.CardSurface,
+            1f to HomeAgendaStyle.CardGlassBottom,
+        ),
+    )
+    drawRect(
+        brush = Brush.linearGradient(
+            colorStops = arrayOf(
+                0f to Color.White.copy(alpha = .32f),
+                .34f to Color.White.copy(alpha = .08f),
+                .72f to Color.White.copy(alpha = 0f),
+            ),
+            start = Offset.Zero,
+            end = Offset(size.width * .56f, size.height * .86f),
+        ),
+    )
+    val bevelInset = 1.5.dp.toPx()
+    val innerRadius = (HomeAgendaStyle.CardRadius.toPx() - bevelInset).coerceAtLeast(0f)
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            0f to Color.White.copy(alpha = .98f),
+            .40f to Color.White.copy(alpha = .44f),
+            1f to HomeAgendaStyle.CardInnerRefraction,
+        ),
+        topLeft = Offset(bevelInset, bevelInset),
+        size = Size(size.width - bevelInset * 2f, size.height - bevelInset * 2f),
+        cornerRadius = CornerRadius(innerRadius, innerRadius),
+        style = Stroke(width = 1.1.dp.toPx()),
+    )
 }
 
 /**
@@ -178,27 +244,27 @@ private fun AgendaCardLayout(
 @Composable
 private fun AgendaLeader(phase: AgendaPhase, kind: AgendaKind, accent: Color, progress: Float) {
     Canvas(Modifier) {
-        val y = size.height / 2
+        val y = (size.height / 2f).toInt() + .5f
         val glyphHalfWidth = when (kind) {
-            AgendaKind.FIXED_EVENT -> 3.5.dp.toPx()
-            AgendaKind.WORK_SESSION -> 6.dp.toPx()
-            AgendaKind.TASK_DEADLINE -> 4.5.dp.toPx()
+            AgendaKind.FIXED_EVENT -> 4.2.dp.toPx()
+            AgendaKind.WORK_SESSION -> 6.8.dp.toPx()
+            AgendaKind.TASK_DEADLINE -> 5.2.dp.toPx()
         }
-        val nodeX = size.width - glyphHalfWidth
+        val nodeX = (size.width - glyphHalfWidth).toInt() + .5f
         val lineEnd = (nodeX - glyphHalfWidth - 8.dp.toPx()).coerceAtLeast(0f)
         val dotted = PathEffect.dashPathEffect(floatArrayOf(.01f, 5.dp.toPx()))
-        val dotWidth = 1.7.dp.toPx()
+        val dotWidth = 1.8.dp.toPx()
         when (phase) {
-            AgendaPhase.PAST -> drawLine(accent, Offset(0f, y), Offset(lineEnd, y), 1.dp.toPx())
-            AgendaPhase.UPCOMING -> drawLine(accent.copy(alpha = .42f), Offset(0f, y), Offset(lineEnd, y), dotWidth,
+            AgendaPhase.PAST -> drawLine(accent, Offset(0f, y), Offset(lineEnd, y), 1.4.dp.toPx(), cap = StrokeCap.Round)
+            AgendaPhase.UPCOMING -> drawLine(accent.copy(alpha = .58f), Offset(0f, y), Offset(lineEnd, y), dotWidth,
                 cap = StrokeCap.Round, pathEffect = dotted)
             AgendaPhase.ONGOING -> {
                 val head = lineEnd * progress
-                drawLine(accent.copy(alpha = .30f), Offset(head, y), Offset(lineEnd, y), dotWidth,
+                drawLine(accent.copy(alpha = .45f), Offset(head, y), Offset(lineEnd, y), dotWidth,
                     cap = StrokeCap.Round, pathEffect = dotted)
-                drawLine(accent, Offset(0f, y), Offset(head, y), 1.6.dp.toPx(), cap = StrokeCap.Round)
-                drawCircle(accent.copy(alpha = .14f), 7.dp.toPx(), Offset(head, y))
-                drawCircle(accent, 3.dp.toPx(), Offset(head, y))
+                drawLine(accent, Offset(0f, y), Offset(head, y), 1.8.dp.toPx(), cap = StrokeCap.Round)
+                drawCircle(accent.copy(alpha = .18f), 7.dp.toPx(), Offset(head, y))
+                drawCircle(accent, 3.2.dp.toPx(), Offset(head, y))
             }
         }
         drawKindGlyph(kind, Offset(nodeX, y), accent, filled = phase != AgendaPhase.UPCOMING)
@@ -206,18 +272,18 @@ private fun AgendaLeader(phase: AgendaPhase, kind: AgendaKind, accent: Color, pr
 }
 
 private fun DrawScope.drawKindGlyph(kind: AgendaKind, center: Offset, color: Color, filled: Boolean) {
-    val strokeWidth = 1.3.dp.toPx()
-    val inset = if (filled) 0f else strokeWidth / 2
-    val style = if (filled) Fill else Stroke(strokeWidth)
+    val strokeWidth = 1.6.dp.toPx()
+    val inset = if (filled) 0f else strokeWidth / 2f
+    val style = if (filled) Fill else Stroke(width = strokeWidth, join = StrokeJoin.Round)
     when (kind) {
-        AgendaKind.FIXED_EVENT -> drawCircle(color, 3.5.dp.toPx() - inset, center, style = style)
+        AgendaKind.FIXED_EVENT -> drawCircle(color, 4.2.dp.toPx() - inset, center, style = style)
         AgendaKind.WORK_SESSION -> {
-            val half = Size(6.dp.toPx() - inset, 3.dp.toPx() - inset)
+            val half = Size(6.8.dp.toPx() - inset, 3.6.dp.toPx() - inset)
             drawRoundRect(color, Offset(center.x - half.width, center.y - half.height),
                 Size(half.width * 2, half.height * 2), CornerRadius(half.height), style = style)
         }
         AgendaKind.TASK_DEADLINE -> {
-            val r = 4.5.dp.toPx() - inset
+            val r = 5.2.dp.toPx() - inset
             val diamond = Path().apply {
                 moveTo(center.x, center.y - r)
                 lineTo(center.x + r, center.y)

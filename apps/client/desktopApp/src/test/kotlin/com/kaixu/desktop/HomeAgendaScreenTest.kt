@@ -25,6 +25,7 @@ import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.desktop.app.DesktopApp
 import com.kaixu.desktop.preview.seedHomeAgendaPreview
+import com.kaixu.domain.model.workspaces.WorkspaceKind
 import com.kaixu.domain.usecase.scheduling.AgendaSnapshot
 import com.kaixu.domain.usecase.scheduling.AgendaUseCase
 import com.kaixu.domain.usecase.scheduling.AgendaWindow
@@ -87,11 +88,12 @@ class HomeAgendaScreenTest {
         compose.waitForIdle()
     }
 
-    private fun screenshot(name: String) {
+    private fun screenshot(name: String, tag: String? = null) {
         val destination = System.getenv("KAIXU_SCREENSHOT_DIR") ?: return
         val file = File(destination, "home-agenda-$name.png")
         file.parentFile.mkdirs()
-        Image.makeFromBitmap(compose.onRoot().captureToImage().asSkiaBitmap()).use {
+        val target = if (tag != null) compose.onNodeWithTag(tag) else compose.onAllNodes(isRoot()).onFirst()
+        Image.makeFromBitmap(target.captureToImage().asSkiaBitmap()).use {
             file.writeBytes(requireNotNull(it.encodeToData()).bytes)
         }
     }
@@ -263,11 +265,10 @@ class HomeAgendaScreenTest {
                 pixels[pixels.width / 2, (pixels.height * .90f).toInt()]
         }
         val (top, bottom) = blankColors()
-        assertEquals("相邻卡片底色保持完全不透明", 248f / 255f, top.red, .005f)
-        assertEquals(246f / 255f, top.green, .005f)
-        assertEquals(241f / 255f, top.blue, .005f)
-        assertTrue("同一张卡片不应再被上下渐变遮罩染成不同颜色",
-            maxOf(abs(top.red - bottom.red), abs(top.green - bottom.green), abs(top.blue - bottom.blue)) < .012f)
+        assertTrue("相邻卡片底色应为极浅扁平毛玻璃色而非偏黄或纯白：top=$top",
+            top.red in .94f..(.994f) && top.green in .945f..(.996f) && top.blue in .955f..(.999f) && top.blue >= top.red)
+        assertTrue("同一张卡片保持扁平柔和毛玻璃漫射，不应出现明显色差：top=$top bottom=$bottom",
+            maxOf(abs(top.red - bottom.red), abs(top.green - bottom.green), abs(top.blue - bottom.blue)) < .025f)
         card.performMouseInput { moveTo(center) }
         val hovered = blankColors().first
         assertEquals("悬停不能给滚动中的卡片覆盖灰色色层", top.red, hovered.red, .002f)
@@ -371,9 +372,9 @@ class HomeAgendaScreenTest {
         screenshot("wide-hover-left-edge")
         val pixels = compose.onRoot().captureToImage().toPixelMap()
         val outsideLeft = pixels[(viewport.left - compose.density.density).toInt(), original.center.y.toInt()]
-        assertEquals("左移越过滚轮边界后仍应绘出完整卡片纸面，不能被裁成白色", 248f / 255f, outsideLeft.red, .012f)
-        assertEquals(246f / 255f, outsideLeft.green, .012f)
-        assertEquals(241f / 255f, outsideLeft.blue, .012f)
+        assertTrue("左移越过滚轮边界后仍应绘出完整浅色毛玻璃卡面，不能被裁成纯白：outsideLeft=$outsideLeft",
+            outsideLeft.red in .94f..(.994f) && outsideLeft.green in .945f..(.996f) && outsideLeft.blue in .955f..(.999f) &&
+                outsideLeft.blue >= outsideLeft.red)
         val above = pixels[original.center.x.toInt(), (viewport.top - 2f * compose.density.density).toInt()]
         assertEquals("仍保留垂直裁剪，不侵占顶部预留区域", 1f, above.red, .002f)
         assertEquals(1f, above.green, .002f)
@@ -432,6 +433,415 @@ class HomeAgendaScreenTest {
         wheel(-6)
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("schedule-create").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("schedule-create").assertExists()
+    }
+
+    @Test fun splitPanelsAndTodayHeaderAdaptWithSmoothRetractionAnimation() {
+        start()
+        val today = snapshot.window.today
+        val expectedDate = "${today.substring(5, 7).toInt()}月${today.substring(8, 10).toInt()}日"
+        compose.onNodeWithTag("home-today-header").assertExists()
+        compose.onNodeWithTag("home-today-capsule").assertDoesNotExist()
+        compose.onNodeWithText(expectedDate).assertExists()
+        compose.onNodeWithText("项截止", substring = true).assertExists()
+
+        val screen = compose.onNodeWithTag("home-screen").fetchSemanticsNode().boundsInRoot
+        val leftWide = compose.onNodeWithTag("home-left-panel").fetchSemanticsNode().boundsInRoot
+        val rightWide = compose.onNodeWithTag("home-secondary-pane").fetchSemanticsNode().boundsInRoot
+        assertTrue("宽屏应并排显示左右两个圆角面板", rightWide.left > leftWide.right)
+        val gapCenterX = ((leftWide.right + rightWide.left) / 2f).toInt()
+        val gapCenterY = screen.center.y.toInt()
+        val rootPixels = compose.onRoot().captureToImage().toPixelMap()
+        val gapColor = rootPixels[gapCenterX, gapCenterY]
+        assertEquals("双面板中间分割区应与窗口背景灰色同色", 243f / 255f, gapColor.red, .015f)
+        assertEquals(243f / 255f, gapColor.green, .015f)
+        assertEquals(243f / 255f, gapColor.blue, .015f)
+
+        // 缩小到阈值以下：右侧区域隐藏，左侧区域占满宽度。
+        compose.runOnIdle { hostWidth.value = 680.dp }
+        compose.waitForIdle()
+        compose.onNodeWithTag("home-secondary-pane").assertDoesNotExist()
+        val narrowScreen = compose.onNodeWithTag("home-screen").fetchSemanticsNode().boundsInRoot
+        val leftNarrow = compose.onNodeWithTag("home-left-panel").fetchSemanticsNode().boundsInRoot
+        assertEquals("窄窗下左侧面板占满主显示区宽度", narrowScreen.width, leftNarrow.width, 1f)
+        screenshot("single-pane")
+
+        // 窗口变宽跨过阈值：左侧面板平滑回缩，右侧面板同步动画进入。
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.runOnIdle { hostWidth.value = 1024.dp }
+            compose.mainClock.advanceTimeBy(128)
+            val leftMid = compose.onNodeWithTag("home-left-panel").fetchSemanticsNode().boundsInRoot
+            val rightMid = compose.onNodeWithTag("home-secondary-pane").fetchSemanticsNode().boundsInRoot
+            assertTrue("左侧面板回缩应经过中间帧：leftMid=${leftMid.width} target=${leftWide.width} full=${screen.width}",
+                leftMid.width > leftWide.width + 15f && leftMid.width < screen.width - 15f)
+            assertTrue("右侧面板应随左侧回缩同步展开", rightMid.width > 10f && rightMid.width < rightWide.width - 10f)
+            screenshot("split-transition")
+            compose.mainClock.advanceTimeBy(900)
+            val leftSettled = compose.onNodeWithTag("home-left-panel").fetchSemanticsNode().boundsInRoot
+            val rightSettled = compose.onNodeWithTag("home-secondary-pane").fetchSemanticsNode().boundsInRoot
+            assertEquals(leftWide.width, leftSettled.width, 1f)
+            assertEquals(rightWide.width, rightSettled.width, 1f)
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test fun boundaryOverscrollPullsCardsWithGrowingRangeAndElongatesRingBar() {
+        start()
+        val lastIndex = snapshot.entries.lastIndex
+        wheel(lastIndex - requireNotNull(snapshot.nearestIndex(now)))
+        val lastCard = compose.onNodeWithTag("home-agenda-${snapshot.entries[lastIndex].key}")
+        val ring = compose.onNodeWithTag("home-boundary-ring-bottom")
+        val restCenterY = lastCard.fetchSemanticsNode().boundsInRoot.center.y
+        val restRingBounds = ring.fetchSemanticsNode().boundsInRoot
+        val restRingHeight = restRingBounds.height
+
+        compose.mainClock.autoAdvance = false
+        try {
+            // 第一次在底部继续下滑：卡片被向上阻尼拉动，圆环单向向下拉长且顶部端帽保持锚定。
+            compose.onNodeWithTag("home-agenda-list").performMouseInput { moveTo(center); scroll(1f) }
+            compose.mainClock.advanceTimeBy(80)
+            val pull1 = restCenterY - lastCard.fetchSemanticsNode().boundsInRoot.center.y
+            val ringBounds1 = ring.fetchSemanticsNode().boundsInRoot
+            val ringHeight1 = ringBounds1.height
+            assertTrue("底部继续滚动时卡片应向上产生阻尼拉动：pull1=$pull1", pull1 > 6f * compose.density.density)
+            assertTrue("圆环状条应随滚动拉长：ringHeight1=$ringHeight1 rest=$restRingHeight", ringHeight1 > restRingHeight + 4f)
+            assertEquals("底部提示条起点端帽应保持锚定不动", restRingBounds.top, ringBounds1.top, 1f)
+
+            // 继续累加滚动幅度：卡片拉动范围随幅度变大，圆环状条持续向下拉长，主圆点始终位于底端端帽处。
+            compose.onNodeWithTag("home-agenda-list").performMouseInput { scroll(1f); scroll(1f) }
+            compose.mainClock.advanceTimeBy(80)
+            val pull3 = restCenterY - lastCard.fetchSemanticsNode().boundsInRoot.center.y
+            val ringBounds3 = ring.fetchSemanticsNode().boundsInRoot
+            val ringHeight3 = ringBounds3.height
+            assertTrue("随滚动幅度增加，卡片拉动范围应更大：pull3=$pull3 pull1=$pull1", pull3 > pull1 + 6f * compose.density.density)
+            assertTrue("圆环状条应继续拉长：ringHeight3=$ringHeight3 ringHeight1=$ringHeight1", ringHeight3 > ringHeight1 + 8f)
+            assertEquals("底部提示条持续拉伸时起点端帽仍应稳固", restRingBounds.top, ringBounds3.top, 1f)
+            val bottomPixels = ring.captureToImage().toPixelMap()
+            val bottomTipCenter = bottomPixels[bottomPixels.width / 2, bottomPixels.height - bottomPixels.width / 2]
+            assertTrue("底部拉伸后最大主圆点应位于底端端帽中心：pixel=$bottomTipCenter",
+                minOf(bottomTipCenter.red, bottomTipCenter.green, bottomTipCenter.blue) < .60f)
+            screenshot("boundary-stretched")
+
+            // 停止输入但未达 6 格跳转阈值时，卡片弹性回弹至中央槽位。
+            compose.mainClock.advanceTimeBy(700)
+            assertCentered(lastIndex)
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+
+        // 切换到昨日起点，验证顶端提示条单向向上拉伸、底端锚定、最大主圆点始终位于顶端端帽。
+        click("home-day-yesterday")
+        val topRing = compose.onNodeWithTag("home-boundary-ring-top")
+        val topRestBounds = topRing.fetchSemanticsNode().boundsInRoot
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.onNodeWithTag("home-agenda-list").performMouseInput { moveTo(center); scroll(-1f); scroll(-1f); scroll(-1f) }
+            compose.mainClock.advanceTimeBy(120)
+            val topStretched = topRing.fetchSemanticsNode().boundsInRoot
+            assertTrue("顶端提示条应随上滑拉长：stretched=${topStretched.height} rest=${topRestBounds.height}",
+                topStretched.height > topRestBounds.height + 16f)
+            assertEquals("顶端提示条起点（底端）应保持锚定不动", topRestBounds.bottom, topStretched.bottom, 1f)
+            val topPixels = topRing.captureToImage().toPixelMap()
+            val topTipCenter = topPixels[topPixels.width / 2, topPixels.width / 2]
+            assertTrue("顶端拉伸后最大主圆点应位于顶端端帽中心：pixel=$topTipCenter",
+                minOf(topTipCenter.red, topTipCenter.green, topTipCenter.blue) < .60f)
+            screenshot("boundary-top-stretched")
+            compose.mainClock.advanceTimeBy(700)
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test fun dayAnchorBarSyncsWithWheelAndReturnsToCurrent() {
+        start()
+        val initial = requireNotNull(snapshot.nearestIndex(now))
+        val today = snapshot.window.today
+        val yesterday = ShanghaiTime.plusDays(today, -1)
+        val tomorrow = ShanghaiTime.plusDays(today, 1)
+        val firstYesterday = snapshot.entries.indexOfFirst { ShanghaiTime.localDateOf(it.time) == yesterday }
+        val firstTomorrow = snapshot.entries.indexOfFirst { ShanghaiTime.localDateOf(it.time) == tomorrow }
+
+        compose.onNodeWithTag("home-teaching-week-slot").assertExists()
+        compose.onNodeWithTag("home-day-switcher").assertExists()
+        compose.onNodeWithTag("home-jump-current").assertDoesNotExist()
+
+        click("home-day-yesterday")
+        assertCentered(firstYesterday)
+        compose.onNodeWithTag("home-jump-current").assertExists()
+        screenshot("header-yesterday-jump")
+
+        click("home-day-tomorrow")
+        assertCentered(firstTomorrow)
+        compose.onNodeWithTag("home-jump-current").assertExists()
+
+        click("home-jump-current")
+        assertCentered(initial)
+        compose.onNodeWithTag("home-jump-current").assertDoesNotExist()
+    }
+
+    @Test fun quickCaptureCapsuleExpandsOnHoverRetractsWhenEmptyAndSavesTaskWithTimeAndWorkspace() {
+        val createdSpace = runBlocking {
+            sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "软件分析与设计")
+        }
+        start()
+
+        val capsule = compose.onNodeWithTag("home-capture-capsule")
+        compose.onNodeWithTag("home-capture-toggle").assertExists()
+        val collapsedWidth = capsule.fetchSemanticsNode().boundsInRoot.width
+        assertTrue("静息态胶囊应呈居中圆形小尺寸：width=$collapsedWidth", collapsedWidth < 60f * compose.density.density)
+
+        // 悬停到加号上时左右展开；未输入信息移开后恢复原状。
+        capsule.performMouseInput { enter(center) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("home-capture-step-title").assertExists()
+        val expandedWidth = capsule.fetchSemanticsNode().boundsInRoot.width
+        assertTrue("悬停后胶囊应向左右显著延伸：expanded=$expandedWidth collapsed=$collapsedWidth",
+            expandedWidth > collapsedWidth * 4f)
+        screenshot("capture-step1")
+
+        compose.onNodeWithTag("home-today-header").performMouseInput { moveTo(center) }
+        compose.mainClock.advanceTimeBy(350)
+        compose.waitForIdle()
+        compose.onNodeWithTag("home-capture-toggle").assertExists()
+
+        // 输入名称后移开鼠标，仍保留展开状态与输入内容。
+        capsule.performMouseInput { moveTo(center) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("home-capture-title").performTextInput("梳理首页毛玻璃方案")
+        compose.onNodeWithTag("home-today-header").performMouseInput { moveTo(center) }
+        compose.mainClock.advanceTimeBy(350)
+        compose.waitForIdle()
+        compose.onNodeWithTag("home-capture-step-title").assertExists()
+        compose.onNodeWithTag("home-capture-title").assertTextContains("梳理首页毛玻璃方案")
+
+        // 点击下一步切换到时间与工作区配置态。
+        click("home-capture-next")
+        compose.onNodeWithTag("home-capture-step-details").assertExists()
+        screenshot("capture-step2")
+
+        // 打开时间微面板：无快捷选项、无“（可选）”、支持三栏日期与日历选择及双框时刻。
+        click("home-capture-time-btn")
+        compose.onNodeWithTag("home-capture-time-popover").assertExists()
+        compose.onNodeWithText("截止时间（可选）").assertDoesNotExist()
+        compose.onNodeWithText("下周").assertDoesNotExist()
+        compose.onNodeWithTag("home-capture-date-year").assertExists()
+        compose.onNodeWithTag("home-capture-date-month").assertExists()
+        compose.onNodeWithTag("home-capture-date-day").assertExists()
+
+        // 展开日历并点选今天。
+        click("home-capture-calendar-toggle")
+        compose.onNodeWithTag("home-capture-calendar-grid").assertExists()
+        screenshot("capture-task-calendar", tag = "home-capture-time-popover")
+        click("home-capture-cal-day-${snapshot.window.today}")
+        compose.onNodeWithTag("home-capture-calendar-grid").assertDoesNotExist()
+
+        // 切到具体时刻：确认拆分为小时/分钟双输入框且无快捷时刻按钮。
+        click("home-capture-task-exacttime")
+        compose.onNodeWithTag("home-capture-task-hour").assertExists()
+        compose.onNodeWithTag("home-capture-task-minute").assertExists()
+        compose.onNodeWithText("23:59").assertDoesNotExist()
+        screenshot("capture-task-exact", tag = "home-capture-time-popover")
+
+        // 切回仅日期截止并确认。
+        click("home-capture-task-dateonly")
+        screenshot("capture-time-popover", tag = "home-capture-time-popover")
+        click("home-capture-time-done")
+        compose.onNodeWithTag("home-capture-time-popover").assertDoesNotExist()
+
+        // 打开工作区微面板，选择“软件分析与设计”。
+        click("home-capture-workspace-btn")
+        compose.onNodeWithTag("home-capture-workspace-popover").assertExists()
+        screenshot("capture-workspace-popover", tag = "home-capture-workspace-popover")
+        click("home-capture-ws-${createdSpace.id}")
+        compose.onNodeWithTag("home-capture-workspace-popover").assertDoesNotExist()
+
+        // 提交并验证持久化到本地数据库且首页同步刷新。
+        click("home-capture-submit")
+        compose.waitUntil(5_000) {
+            runBlocking { sources.tasks.listTasks().any { it.title == "梳理首页毛玻璃方案" } }
+        }
+        val savedTask = runBlocking { sources.tasks.listTasks().first { it.title == "梳理首页毛玻璃方案" } }
+        assertEquals(snapshot.window.today, savedTask.deadlineDate)
+        assertNull(savedTask.deadlineAt)
+        assertEquals(createdSpace.id, savedTask.workspaceId)
+    }
+
+    @Test fun quickCaptureCanCreateIndependentEventLeavingTimeAndWorkspaceEmpty() {
+        start()
+        click("home-capture-toggle")
+        click("home-capture-kind-event")
+        compose.onNodeWithTag("home-capture-title").performTextInput("临时同步站会")
+        click("home-capture-next")
+        compose.onNodeWithTag("home-capture-step-details").assertExists()
+
+        // 时间和工作区均保持默认空态直接提交（若与预览时段冲突则点击仍然保存）。
+        click("home-capture-submit")
+        compose.waitForIdle()
+        if (compose.onAllNodesWithTag("home-capture-conflict-confirm").fetchSemanticsNodes().isNotEmpty()) {
+            click("home-capture-conflict-confirm")
+        }
+        compose.waitUntil(5_000) {
+            runBlocking { sources.fixedEvents.listEvents().any { it.title == "临时同步站会" } }
+        }
+        val savedEvent = runBlocking { sources.fixedEvents.listEvents().first { it.title == "临时同步站会" } }
+        assertNull(savedEvent.workspaceId)
+        assertTrue(savedEvent.endsAt > savedEvent.startsAt)
+    }
+
+    @Test fun quickCaptureEventPopoverUsesSplitDateAndHourMinuteInputsWithoutPresets() {
+        start()
+        val tomorrow = ShanghaiTime.plusDays(snapshot.window.today, 1)
+        click("home-capture-toggle")
+        click("home-capture-kind-event")
+        compose.onNodeWithTag("home-capture-title").performTextInput("架构评审会")
+        click("home-capture-next")
+        click("home-capture-time-btn")
+        compose.onNodeWithTag("home-capture-time-popover").assertExists()
+
+        // 确认所有快捷选项与“默认下整点”已移除。
+        compose.onNodeWithText("默认下整点").assertDoesNotExist()
+        compose.onNodeWithText("下整点").assertDoesNotExist()
+        compose.onNodeWithText("1小时").assertDoesNotExist()
+        compose.onNodeWithText("下周").assertDoesNotExist()
+        screenshot("capture-event-popover", tag = "home-capture-time-popover")
+
+        // 手动填写三栏日期与拆分的小时/分钟输入框（无需冒号）。
+        compose.onNodeWithTag("home-capture-date-year").performTextReplacement(tomorrow.substring(0, 4))
+        compose.onNodeWithTag("home-capture-date-month").performTextReplacement(tomorrow.substring(5, 7))
+        compose.onNodeWithTag("home-capture-date-day").performTextReplacement(tomorrow.substring(8, 10))
+        compose.onNodeWithTag("home-capture-event-start-hour").performTextReplacement("16")
+        compose.onNodeWithTag("home-capture-event-start-minute").performTextReplacement("15")
+        compose.onNodeWithTag("home-capture-event-end-hour").performTextReplacement("17")
+        compose.onNodeWithTag("home-capture-event-end-minute").performTextReplacement("45")
+
+        click("home-capture-time-done")
+        compose.onNodeWithTag("home-capture-time-popover").assertDoesNotExist()
+
+        click("home-capture-submit")
+        compose.waitForIdle()
+        if (compose.onAllNodesWithTag("home-capture-conflict-confirm").fetchSemanticsNodes().isNotEmpty()) {
+            click("home-capture-conflict-confirm")
+        }
+        compose.waitUntil(5_000) {
+            runBlocking { sources.fixedEvents.listEvents().any { it.title == "架构评审会" } }
+        }
+        val saved = runBlocking { sources.fixedEvents.listEvents().first { it.title == "架构评审会" } }
+        assertEquals(ShanghaiTime.parseOrNull("$tomorrow 16:15"), saved.startsAt)
+        assertEquals(ShanghaiTime.parseOrNull("$tomorrow 17:45"), saved.endsAt)
+    }
+
+    @Test fun workspacePopoverShowsHoverFeedbackAndScrollsWithWheelWhenMoreThanFour() {
+        val spaces = runBlocking {
+            listOf(
+                sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "01 数据库系统原理"),
+                sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "02 算法与数据结构"),
+                sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "03 软件工程"),
+                sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "04 操作系统"),
+                sources.workspaces.createWorkspace(WorkspaceKind.PROJECT, "05 KaiXu 课程项目"),
+                sources.workspaces.createWorkspace(WorkspaceKind.PROJECT, "06 期末综合实践"),
+            )
+        }
+        start()
+        click("home-capture-toggle")
+        compose.onNodeWithTag("home-capture-title").performTextInput("测试工作区滚动")
+        click("home-capture-next")
+        click("home-capture-workspace-btn")
+
+        compose.onNodeWithTag("home-capture-workspace-popover").assertExists()
+        compose.onNodeWithText("可空 · 默认独立").assertDoesNotExist()
+        compose.onNodeWithText("独立事项（不关联）").assertDoesNotExist()
+        compose.onNodeWithTag("home-capture-ws-none").assertTextEquals("独立事项")
+        compose.onNodeWithTag("home-capture-workspace-scrollbar").assertExists()
+
+        // 验证鼠标悬停/移出未选中工作区选项时底色平滑过渡且全程无发黑闪烁。
+        val secondItem = compose.onNodeWithTag("home-capture-ws-${spaces[1].id}")
+        fun sampleRowPixels(): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
+            val pixels = secondItem.captureToImage().toPixelMap()
+            val interior = pixels[(pixels.width * .92f).toInt(), pixels.height / 2]
+            val topBorder = pixels[pixels.width / 2, 0]
+            return interior to topBorder
+        }
+        val (beforeHover, _) = sampleRowPixels()
+        var afterHover = beforeHover
+        compose.mainClock.autoAdvance = false
+        try {
+            secondItem.performMouseInput { enter(center) }
+            repeat(8) { step ->
+                compose.mainClock.advanceTimeBy(16)
+                val (interior, border) = sampleRowPixels()
+                assertTrue(
+                    "悬停进入第 ${step + 1} 帧底色不得发黑闪烁：interior=$interior",
+                    minOf(interior.red, interior.green, interior.blue) >= .90f,
+                )
+                assertTrue(
+                    "悬停进入第 ${step + 1} 帧边框不得发黑闪烁：border=$border",
+                    minOf(border.red, border.green, border.blue) >= .80f,
+                )
+            }
+            compose.mainClock.advanceTimeBy(120)
+            afterHover = sampleRowPixels().first
+            assertTrue(
+                "悬停工作区选项后底色应产生可见视觉变化：before=$beforeHover after=$afterHover",
+                maxOf(abs(beforeHover.red - afterHover.red), abs(beforeHover.green - afterHover.green), abs(beforeHover.blue - afterHover.blue)) > .018f,
+            )
+
+            secondItem.performMouseInput { exit(Offset(-12f, -12f)) }
+            repeat(8) { step ->
+                compose.mainClock.advanceTimeBy(16)
+                val (interior, border) = sampleRowPixels()
+                assertTrue(
+                    "悬停移出第 ${step + 1} 帧底色不得发黑闪烁：interior=$interior",
+                    minOf(interior.red, interior.green, interior.blue) >= .90f,
+                )
+                assertTrue(
+                    "悬停移出第 ${step + 1} 帧边框不得发黑闪烁：border=$border",
+                    minOf(border.red, border.green, border.blue) >= .80f,
+                )
+            }
+            compose.mainClock.advanceTimeBy(120)
+            val (afterExit, _) = sampleRowPixels()
+            assertTrue(
+                "悬停移出结束后应平滑恢复原底色：before=$beforeHover afterExit=$afterExit",
+                maxOf(abs(beforeHover.red - afterExit.red), abs(beforeHover.green - afterExit.green), abs(beforeHover.blue - afterExit.blue)) < .008f,
+            )
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+        secondItem.performMouseInput { enter(center) }
+        compose.waitForIdle()
+        screenshot("capture-workspace-hover", tag = "home-capture-workspace-popover")
+
+        // 验证工作区数量大于 4 时区域限高为 4 项，并支持通过滚轮滚动到底部选择第 6 项。
+        val listNode = compose.onNodeWithTag("home-capture-workspace-list")
+        val listBounds = listNode.fetchSemanticsNode().boundsInRoot
+        assertTrue("工作区列表最多同屏显示 4 项：height=${listBounds.height}",
+            listBounds.height <= 162f * compose.density.density)
+        val firstTag = "home-capture-ws-${spaces[0].id}"
+        val sixthTag = "home-capture-ws-${spaces[5].id}"
+        val firstBefore = compose.onNodeWithTag(firstTag).fetchSemanticsNode().boundsInRoot
+        listNode.performMouseInput {
+            moveTo(center)
+            repeat(5) {
+                scroll(1f)
+                advanceEventTime(32)
+            }
+        }
+        compose.waitForIdle()
+        screenshot("capture-workspace-scrolled", tag = "home-capture-workspace-popover")
+        val firstAfter = compose.onNodeWithTag(firstTag).fetchSemanticsNode().boundsInRoot
+        val afterScrollBounds = compose.onNodeWithTag(sixthTag).fetchSemanticsNode().boundsInRoot
+        assertTrue("向下滚轮后第 6 个工作区应上移进入可见区：firstBefore=$firstBefore firstAfter=$firstAfter sixthAfter=$afterScrollBounds list=$listBounds",
+            afterScrollBounds.height > 0f && afterScrollBounds.top >= listBounds.top - 1f && afterScrollBounds.bottom <= listBounds.bottom + 2f)
+
+        click(sixthTag)
+        compose.onNodeWithTag("home-capture-workspace-popover").assertDoesNotExist()
+        click("home-capture-submit")
+        compose.waitUntil(5_000) {
+            runBlocking { sources.tasks.listTasks().any { it.title == "测试工作区滚动" } }
+        }
+        val saved = runBlocking { sources.tasks.listTasks().first { it.title == "测试工作区滚动" } }
+        assertEquals(spaces[5].id, saved.workspaceId)
     }
 }
 

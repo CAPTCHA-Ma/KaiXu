@@ -47,21 +47,24 @@ fun DesktopShell(
             onForward = onForward,
             onPreview = onPreview,
         )
+        val isHome = currentDestination == DesktopDestination.Home
         Row(Modifier.weight(1f).fillMaxWidth().padding(end = Colors.ContentInset, bottom = Colors.ContentInset)) {
             sidebar()
             Surface(
                 modifier = Modifier.weight(1f).fillMaxSize()
-                    .shadow(
-                        elevation = Colors.ContentElevation,
-                        shape = panelShape,
-                        clip = false,
-                        ambientColor = Colors.ContentAmbientShadow,
-                        spotColor = Colors.ContentSpotShadow,
+                    .then(
+                        if (isHome) Modifier else Modifier.shadow(
+                            elevation = Colors.ContentElevation,
+                            shape = panelShape,
+                            clip = false,
+                            ambientColor = Colors.ContentAmbientShadow,
+                            spotColor = Colors.ContentSpotShadow,
+                        ),
                     )
                     .testTag("desktop-content-panel"),
                 shape = panelShape,
-                color = Colors.ContentBackground,
-                border = BorderStroke(1.dp, Colors.ContentBorder),
+                color = if (isHome) Colors.Color0 else Colors.ContentBackground,
+                border = if (isHome) null else BorderStroke(1.dp, Colors.ContentBorder),
             ) { content() }
         }
     }
