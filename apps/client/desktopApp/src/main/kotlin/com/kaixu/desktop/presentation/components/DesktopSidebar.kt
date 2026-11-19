@@ -31,11 +31,12 @@ fun DesktopSidebar(
     onNavigate: (DesktopDestination) -> Unit,
     modifier: Modifier = Modifier,
     onPreview: (source: String, destination: DesktopDestination?) -> Unit = { _, _ -> },
+    showWorkspaces: Boolean = true,
 ) {
     val sections = buildList {
         add(DesktopDestination.Tasks)
         if (showSchedule) add(DesktopDestination.Schedule)
-        add(DesktopDestination.Workspaces)
+        if (showWorkspaces) add(DesktopDestination.Workspaces)
     }
     Column(
         modifier.width(Colors.SidebarWidth).fillMaxHeight()

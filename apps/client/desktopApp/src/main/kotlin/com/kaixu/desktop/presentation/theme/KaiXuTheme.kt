@@ -40,7 +40,7 @@ fun KaiXuTheme(content: @Composable () -> Unit) {
         typography = desktopTypography,
         colorScheme = lightColorScheme(
             primary = Color(0xFF3157C8),
-            background = Color(0xFFF5F7FB),
+            background = Color.White,
             surface = Color.White,
             onSurface = Color(0xFF19243B),
             secondaryContainer = Color(0xFFEAF0FF),

@@ -62,7 +62,7 @@ internal fun DesktopChromeButton(
             .hoverable(interactions, enabled)
             .clickable(interactions, indication = null, enabled = enabled, role = Role.Button) {
                 // 点击消耗本次预览，鼠标仍停在按钮上时不覆盖已切换的页面标题。
-                previewConsumed = true
+                previewConsumed = hovered
                 previewCallback(tag, null)
                 onClick()
             },

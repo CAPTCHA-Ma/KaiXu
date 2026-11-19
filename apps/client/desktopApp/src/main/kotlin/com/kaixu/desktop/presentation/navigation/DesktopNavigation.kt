@@ -15,6 +15,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.savedstate.read
 import com.kaixu.app.di.AppGraph
 import com.kaixu.desktop.presentation.ui.settings.SettingsScreen
+import com.kaixu.desktop.presentation.ui.home.HomeScreen
+import com.kaixu.desktop.presentation.ui.home.HomeRoute
+import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
+import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.usecase.scheduling.AgendaUseCase
+import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
 import com.kaixu.desktop.presentation.ui.tasks.TaskEditorRoute
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
@@ -75,87 +81,110 @@ fun DesktopNavigation(
         onForward = navigator::forward,
         onPreview = onPreview,
         modifier = modifier,
+        sidebar = {
+            DesktopSidebar(
+                activeSection = activeSection,
+                showSchedule = sources != null,
+                showWorkspaces = workspaces != null,
+                onNavigate = navigator::open,
+                onPreview = onPreview,
+            )
+        },
     ) {
-        Row(Modifier.fillMaxSize()) {
-            if (workspaces != null) {
-                DesktopSidebar(
-                    activeSection = activeSection,
-                    showSchedule = sources != null,
-                    onNavigate = navigator::open,
-                    onPreview = onPreview,
-                )
-            }
-            NavHost(
-                navController = navController,
-                startDestination = DesktopDestination.TASK_EDITOR,
-                modifier = Modifier.weight(1f),
-            ) {
-                composable(DesktopDestination.TASK_EDITOR) { entry ->
-                    // entry 是 NavBackStackEntry：同一条目重组时复用 VM，出栈时清理。
-                    val editor = viewModel<TaskEditorViewModel>(viewModelStoreOwner = entry) {
-                        TaskEditorViewModel(graph.taskUseCases)
-                    }
-                    TaskEditorRoute(
-                        viewModel = editor,
-                        onOpenTask = if (sources == null) null else { id -> openRecord(LocalRecordTarget(RecordKind.TASK, id)) },
-                        onOpenSettings = { navigator.open(DesktopDestination.Settings) },
-                    )
-                }
-                composable(DesktopDestination.SETTINGS) {
-                    // 纯说明页没有业务状态，不需要空壳 ViewModel。
-                    SettingsScreen(
-                        onBack = navigator::back,
-                        backLabel = history.previous?.destination?.let { "返回${it.title}" } ?: "返回上一页",
-                    )
-                }
-                if (workspaces != null) {
-                    composable(DesktopDestination.WORKSPACES) { entry ->
-                        val workspaceViewModel = viewModel<WorkspaceViewModel>(viewModelStoreOwner = entry) {
-                            WorkspaceViewModel(workspaces)
-                        }
-                        val overviewViewModel = if (sources != null) {
-                            viewModel<WorkspaceOverviewViewModel>(viewModelStoreOwner = entry) {
-                                WorkspaceOverviewViewModel(
-                                    WorkspaceOverviewUseCase(sources.tasks, sources.fixedEvents, sources.workSessions),
-                                    LOCAL_ACTOR_ID, ::currentWorkspaceWindow,
-                                )
-                            }
-                        } else null
-                        WorkspaceRoute(
-                            workspaceViewModel,
-                            overviewContent = overviewViewModel?.let { overview ->
-                                { space -> WorkspaceOverviewRoute(space, overview, openRecord) }
-                            },
-                            resourcesContent = sources?.let { localSources ->
-                                { space, summary, openAll ->
-                                    WorkspaceResourcesSection(
-                                        space, localSources,
-                                        onOpenResource = { id ->
-                                            navigationScope.launch(Dispatchers.Main.immediate) {
-                                                navigator.open(DesktopDestination.ResourceRecord(id))
-                                            }
-                                        },
-                                        onOpenAll = openAll, summary = summary,
-                                    )
-                                }
-                            },
+        NavHost(
+            navController = navController,
+            startDestination = DesktopDestination.HOME,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            composable(DesktopDestination.HOME) { entry ->
+                if (sources == null) HomeScreen()
+                else {
+                    val home = viewModel<HomeViewModel>(viewModelStoreOwner = entry) {
+                        HomeViewModel(
+                            agenda = AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
+                            ownerUserId = LOCAL_ACTOR_ID,
+                            workspaces = sources.workspaces,
+                            taskUseCases = graph.taskUseCases,
+                            fixedEventSchedule = FixedEventSchedule(
+                                sources.fixedEvents,
+                                sources.workSessions,
+                                sources.workspaces,
+                                LOCAL_ACTOR_ID,
+                                object : SchedulingTransaction {
+                                    override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
+                                },
+                            ),
                         )
                     }
+                    HomeRoute(home, onOpenRecord = openRecord,
+                        onOpenSchedule = { navigator.open(DesktopDestination.Schedule) })
                 }
-                if (sources != null) {
-                    composable(DesktopDestination.SCHEDULE) {
-                        LocalScheduleRoute(sources, onOpenRecord = openRecord)
+            }
+            composable(DesktopDestination.TASK_EDITOR) { entry ->
+                // entry 是 NavBackStackEntry：同一条目重组时复用 VM，出栈时清理。
+                val editor = viewModel<TaskEditorViewModel>(viewModelStoreOwner = entry) {
+                    TaskEditorViewModel(graph.taskUseCases)
+                }
+                TaskEditorRoute(
+                    viewModel = editor,
+                    onOpenTask = if (sources == null) null else { id -> openRecord(LocalRecordTarget(RecordKind.TASK, id)) },
+                    onOpenSettings = { navigator.open(DesktopDestination.Settings) },
+                )
+            }
+            composable(DesktopDestination.SETTINGS) {
+                // 纯说明页没有业务状态，不需要空壳 ViewModel。
+                SettingsScreen(
+                    onBack = navigator::back,
+                    backLabel = history.previous?.destination?.let { "返回${it.title}" } ?: "返回上一页",
+                )
+            }
+            if (workspaces != null) {
+                composable(DesktopDestination.WORKSPACES) { entry ->
+                    val workspaceViewModel = viewModel<WorkspaceViewModel>(viewModelStoreOwner = entry) {
+                        WorkspaceViewModel(workspaces)
                     }
-                    composable(DesktopDestination.RESOURCE) { entry ->
-                        val id = requireNotNull(entry.arguments).read { getString("id") }
-                        ResourceRecordRoute(id, sources, onBack = navigator::back)
-                    }
-                    composable(DesktopDestination.RECORD) { entry ->
-                        val target = requireNotNull(entry.arguments).read {
-                            LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
+                    val overviewViewModel = if (sources != null) {
+                        viewModel<WorkspaceOverviewViewModel>(viewModelStoreOwner = entry) {
+                            WorkspaceOverviewViewModel(
+                                WorkspaceOverviewUseCase(sources.tasks, sources.fixedEvents, sources.workSessions),
+                                LOCAL_ACTOR_ID, ::currentWorkspaceWindow,
+                            )
                         }
-                        LocalRecordRoute(target, sources, onBack = navigator::back)
+                    } else null
+                    WorkspaceRoute(
+                        workspaceViewModel,
+                        overviewContent = overviewViewModel?.let { overview ->
+                            { space -> WorkspaceOverviewRoute(space, overview, openRecord) }
+                        },
+                        resourcesContent = sources?.let { localSources ->
+                            { space, summary, openAll ->
+                                WorkspaceResourcesSection(
+                                    space, localSources,
+                                    onOpenResource = { id ->
+                                        navigationScope.launch(Dispatchers.Main.immediate) {
+                                            navigator.open(DesktopDestination.ResourceRecord(id))
+                                        }
+                                    },
+                                    onOpenAll = openAll, summary = summary,
+                                )
+                            }
+                        },
+                    )
+                }
+            }
+            if (sources != null) {
+                composable(DesktopDestination.SCHEDULE) {
+                    LocalScheduleRoute(sources, onOpenRecord = openRecord)
+                }
+                composable(DesktopDestination.RESOURCE) { entry ->
+                    val id = requireNotNull(entry.arguments).read { getString("id") }
+                    ResourceRecordRoute(id, sources, onBack = navigator::back)
+                }
+                composable(DesktopDestination.RECORD) { entry ->
+                    val target = requireNotNull(entry.arguments).read {
+                        LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
                     }
+                    LocalRecordRoute(target, sources, onBack = navigator::back)
                 }
             }
         }

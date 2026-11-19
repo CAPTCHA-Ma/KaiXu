@@ -6,6 +6,9 @@ sealed class DesktopDestination(val title: String) {
 
     sealed class Section(override val route: String, title: String) : DesktopDestination(title)
 
+    data object Home : DesktopDestination("首页") {
+        override val route = HOME
+    }
     data object Tasks : Section(TASK_EDITOR, "任务")
     data object Schedule : Section(SCHEDULE, "日程")
     data object Workspaces : Section(WORKSPACES, "工作区")
@@ -27,6 +30,7 @@ sealed class DesktopDestination(val title: String) {
 
     companion object {
         // NavHost 的路由模板；带参数的实际页面使用上面的类型构造。
+        const val HOME = "home"
         const val TASK_EDITOR = "task-editor"
         const val SETTINGS = "settings"
         const val WORKSPACES = "workspaces"

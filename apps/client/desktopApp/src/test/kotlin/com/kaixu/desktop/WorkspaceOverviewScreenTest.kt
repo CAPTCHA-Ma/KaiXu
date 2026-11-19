@@ -159,6 +159,7 @@ class WorkspaceOverviewScreenTest {
             )
         }
         startApp()
+        clickTag("nav-task-editor")
         awaitEnabled(fixture.task.title)
         click(fixture.task.title)
         awaitTag("record-title")

@@ -14,4 +14,12 @@ object DesktopChromeColors {
     val ButtonCornerRadius = 8.dp
     val SidebarButtonSize = 36.dp
     val SidebarWidth = SidebarButtonSize + 16.dp
+    val TitleButtonStartInset = (SidebarWidth - ButtonHeight) / 2
+    val ContentCornerRadius = 14.dp
+    val ContentInset = 8.dp
+    val ContentBackground = Color.White
+    val ContentBorder = Color(0xFFE8E8E8)
+    val ContentElevation = 4.dp
+    val ContentAmbientShadow = Color.Black.copy(alpha = .10f)
+    val ContentSpotShadow = Color.Black.copy(alpha = .12f)
 }
