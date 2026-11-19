@@ -25,7 +25,8 @@ import com.kaixu.presentation.state.workspaces.WorkspaceUiState
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
 
 private val WorkspaceBlue = Color(0xFF3157C8)
-private val WorkspaceBackground = Color.White
+private val WorkspaceBackground = Color(0xFFF5F7FB)
+private val WorkspaceNameFont = if (System.getProperty("os.name").startsWith("Windows")) null else FontFamily.Serif
 
 @Composable
 fun WorkspaceRoute(
@@ -170,7 +171,7 @@ private fun WorkspaceCard(space: Workspace, onOpen: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("${kindLabel(space.kind)} · ${statusLabel(space.status)}", color = WorkspaceBlue,
                     style = MaterialTheme.typography.labelMedium)
-                Text(space.name, style = MaterialTheme.typography.titleLarge, fontFamily = FontFamily.Serif)
+                Text(space.name, style = MaterialTheme.typography.titleLarge, fontFamily = WorkspaceNameFont)
                 if (space.kind == WorkspaceKind.PROJECT && !space.description.isNullOrBlank()) {
                     Text(space.description.orEmpty(), maxLines = 3, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -201,7 +202,7 @@ private fun WorkspaceDetail(
             Spacer(Modifier.weight(1f))
             Text("仅自己可见", style = MaterialTheme.typography.bodySmall)
         }
-        Text(space.name, style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Serif)
+        Text(space.name, style = MaterialTheme.typography.headlineMedium, fontFamily = WorkspaceNameFont)
         TabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0), containerColor = WorkspaceBackground) {
             tabs.forEach { label -> Tab(selected = tab == label, onClick = { tab = label }, text = { Text(label) }) }
         }
