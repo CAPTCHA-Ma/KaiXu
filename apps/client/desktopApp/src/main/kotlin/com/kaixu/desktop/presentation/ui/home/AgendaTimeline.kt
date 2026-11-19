@@ -200,7 +200,8 @@ internal fun AgendaTimeline(
                             if (delta == 0f) continue
                             event.changes.forEach { it.consume() }
                             hoveredKey = null
-                            val moment = System.nanoTime() / 1_000_000
+                            // 使用指针事件自身的单调时间戳（生产环境与真实时钟一致，UI 测试中与虚拟测试时钟同步，不受截图落盘等宿主机耗时干扰）。
+                            val moment = event.changes.firstOrNull()?.uptimeMillis ?: (System.nanoTime() / 1_000_000)
                             if (moment - lastWheelInput > CardScrollMotion.InputGraceSeconds * 1_000 || sign(wheelRemainder) != sign(delta)) wheelRemainder = 0f
                             lastWheelInput = moment
                             wheelRemainder += delta
