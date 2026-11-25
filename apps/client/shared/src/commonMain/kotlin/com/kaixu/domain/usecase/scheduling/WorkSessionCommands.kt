@@ -98,7 +98,7 @@ internal class WorkSessionSchedulingRules(
 
 class CreateWorkSessionsUseCase(
     private val repository: WorkSessionRepository,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
     dateAt: (Long) -> String,
 ) {
     private val rules = WorkSessionSchedulingRules(repository, dateAt)
@@ -126,7 +126,7 @@ class CreateWorkSessionsUseCase(
 class UpdateWorkSessionUseCase(
     private val repository: WorkSessionRepository,
     private val focus: FocusRepository,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
     dateAt: (Long) -> String,
 ) {
     private val rules = WorkSessionSchedulingRules(repository, dateAt)
@@ -151,7 +151,7 @@ class UpdateWorkSessionUseCase(
 }
 
 /** 只变更个人时段状态，不据计时结果自动完成任务；取消或完成会由 DAO 原子中断活动计时。 */
-class ChangeWorkSessionStatusUseCase(private val repository: WorkSessionRepository, private val transaction: SchedulingTransaction) {
+class ChangeWorkSessionStatusUseCase(private val repository: WorkSessionRepository, private val transaction: LocalTransaction) {
     suspend operator fun invoke(original: WorkSession, status: WorkSessionStatus): WorkSession = transaction.run {
         require(status != WorkSessionStatus.PLANNED) { "不自动恢复已结束或取消的安排，请另行创建" }
         val current = requireNotNull(repository.findById(original.id)) { "计划时段不存在或不属于本人" }
@@ -164,7 +164,7 @@ class ChangeWorkSessionStatusUseCase(private val repository: WorkSessionReposito
     }
 }
 
-class DeleteWorkSessionUseCase(private val repository: WorkSessionRepository, private val transaction: SchedulingTransaction) {
+class DeleteWorkSessionUseCase(private val repository: WorkSessionRepository, private val transaction: LocalTransaction) {
     suspend operator fun invoke(original: WorkSession): Boolean = transaction.run {
         val current = repository.findById(original.id) ?: return@run false
         require(current == original) { "计划时段已变更，请刷新后重新确认删除" }
@@ -175,7 +175,7 @@ class DeleteWorkSessionUseCase(private val repository: WorkSessionRepository, pr
 data class PersonalSchedule(val events: List<FixedEvent>, val workSessions: List<WorkSession>)
 
 /** 固定事件和计划时段使用同一时间范围；取消的安排不再占用日历。历史完成项保留。 */
-class GetPersonalScheduleUseCase(private val repository: WorkSessionRepository, private val transaction: SchedulingTransaction) {
+class GetPersonalScheduleUseCase(private val repository: WorkSessionRepository, private val transaction: LocalTransaction) {
     suspend operator fun invoke(start: Long, end: Long): PersonalSchedule = transaction.run {
         SchedulingInput.requireRange(start, end)
         PersonalSchedule(repository.listFixedEventsInRange(start, end), repository.listInRange(start, end).filter { it.status != WorkSessionStatus.CANCELLED })

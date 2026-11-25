@@ -3,7 +3,7 @@ package com.kaixu.data.repository
 import com.kaixu.data.datasource.*
 import com.kaixu.domain.model.scheduling.*
 import com.kaixu.domain.model.tasks.Task
-import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.repository.LocalTransaction
 import com.kaixu.domain.repository.WorkSessionRepository
 import com.kaixu.domain.validation.scheduling.SchedulingInput
 
@@ -14,7 +14,7 @@ class DefaultWorkSessionRepository(
     private val events: FixedEventDataSource,
     private val workspaces: WorkspaceDataSource,
     override val ownerUserId: String,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
 ) : WorkSessionRepository {
     init { SchedulingInput.requireId(ownerUserId) }
 

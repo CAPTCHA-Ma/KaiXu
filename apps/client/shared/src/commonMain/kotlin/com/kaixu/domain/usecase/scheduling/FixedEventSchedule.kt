@@ -10,7 +10,7 @@ import com.kaixu.domain.model.scheduling.Recurrence
 import com.kaixu.domain.model.scheduling.ScheduleOccurrence
 import com.kaixu.domain.model.scheduling.WorkSessionStatus
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.repository.LocalTransaction
 import com.kaixu.domain.validation.scheduling.FixedEventForm
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 
@@ -46,7 +46,7 @@ class FixedEventSchedule(
     private val sessions: WorkSessionDataSource,
     private val workspaces: WorkspaceDataSource,
     private val ownerUserId: String,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
 ) {
     suspend fun create(
         draft: FixedEventDraft,

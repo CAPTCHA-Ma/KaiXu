@@ -16,7 +16,6 @@ import com.kaixu.domain.model.scheduling.WorkSessionStatus
 import com.kaixu.domain.model.tasks.*
 import com.kaixu.domain.model.workspaces.WorkspaceKind
 import com.kaixu.domain.repository.LocalDataRevisionTracker
-import com.kaixu.domain.repository.SchedulingTransaction
 import java.nio.file.Files
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
@@ -96,9 +95,7 @@ class TaskRepositoryDatabaseTest {
                     workspaces = sources.workspaces,
                     workSessions = sources.workSessions,
                     ownerUserId = LOCAL_ACTOR_ID,
-                    transaction = object : SchedulingTransaction {
-                        override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-                    },
+                    transaction = sources.transaction,
                     revisionTracker = revisionTracker,
                 )
 

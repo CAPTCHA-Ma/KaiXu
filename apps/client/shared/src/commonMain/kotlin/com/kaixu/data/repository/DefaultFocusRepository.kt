@@ -3,13 +3,13 @@ package com.kaixu.data.repository
 import com.kaixu.data.datasource.FocusDataSource
 import com.kaixu.domain.model.scheduling.*
 import com.kaixu.domain.repository.FocusRepository
-import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.repository.LocalTransaction
 import com.kaixu.domain.validation.scheduling.SchedulingInput
 
 class DefaultFocusRepository(
     private val source: FocusDataSource,
     override val ownerUserId: String,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
 ) : FocusRepository {
     init { SchedulingInput.requireId(ownerUserId) }
 

@@ -8,10 +8,10 @@ import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.repository.DirectSchedulingTransaction
+import com.kaixu.domain.repository.DirectTransaction
 import com.kaixu.domain.repository.LocalDataRevision
 import com.kaixu.domain.repository.LocalDataRevisionTracker
-import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.repository.LocalTransaction
 import com.kaixu.domain.repository.TaskRepository
 import com.kaixu.domain.repository.TaskWriteScope
 import com.kaixu.domain.validation.scheduling.SchedulingInput
@@ -34,7 +34,7 @@ class DefaultTaskRepository(
     private val workspaces: WorkspaceDataSource? = null,
     private val workSessions: WorkSessionDataSource? = null,
     override val ownerUserId: String = LOCAL_ACTOR_ID,
-    private val transaction: SchedulingTransaction = DirectSchedulingTransaction,
+    private val transaction: LocalTransaction = DirectTransaction,
     private val revisionTracker: LocalDataRevision = LocalDataRevisionTracker(),
 ) : TaskRepository {
     init {

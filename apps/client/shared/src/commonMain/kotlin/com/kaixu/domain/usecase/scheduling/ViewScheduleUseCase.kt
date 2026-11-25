@@ -14,7 +14,7 @@ import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.repository.LocalTransaction
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 
 /** 日程的工作区范围；切换时保留日期窗口与类型标识。 */
@@ -34,7 +34,7 @@ class ViewScheduleUseCase(
     private val tasks: TaskDataSource,
     private val workspaces: WorkspaceDataSource,
     private val ownerUserId: String,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
 ) {
     suspend operator fun invoke(
         windowStart: Long,

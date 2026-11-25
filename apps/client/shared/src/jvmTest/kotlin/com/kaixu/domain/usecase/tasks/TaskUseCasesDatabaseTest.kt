@@ -21,7 +21,6 @@ import com.kaixu.domain.model.tasks.TaskScheduleState
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.workspaces.WorkspaceKind
 import com.kaixu.domain.repository.LocalDataRevisionTracker
-import com.kaixu.domain.repository.SchedulingTransaction
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import kotlin.test.Test
@@ -52,9 +51,7 @@ class TaskUseCasesDatabaseTest {
                     workspaces = sources.workspaces,
                     workSessions = sources.workSessions,
                     ownerUserId = LOCAL_ACTOR_ID,
-                    transaction = object : SchedulingTransaction {
-                        override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-                    },
+                    transaction = sources.transaction,
                     revisionTracker = revisionTracker,
                 )
                 val useCases = TaskUseCases(repo, defaultZone = shanghai)
@@ -182,9 +179,7 @@ class TaskUseCasesDatabaseTest {
                     workspaces = sources.workspaces,
                     workSessions = sources.workSessions,
                     ownerUserId = LOCAL_ACTOR_ID,
-                    transaction = object : SchedulingTransaction {
-                        override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-                    },
+                    transaction = sources.transaction,
                     revisionTracker = revisionTracker,
                 )
                 val useCases = TaskUseCases(repo, defaultZone = shanghai)

@@ -20,7 +20,6 @@ import com.kaixu.domain.model.scheduling.ScheduleEntryType
 import com.kaixu.domain.model.scheduling.ScheduleView
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.repository.SchedulingTransaction
 import com.kaixu.domain.usecase.scheduling.ScheduleWorkspaceFilter
 import com.kaixu.domain.usecase.scheduling.ViewScheduleUseCase
 import java.time.DayOfWeek
@@ -45,10 +44,7 @@ internal fun LocalScheduleRoute(
 ) {
     val schedule = remember(sources) {
         ViewScheduleUseCase(
-            sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID,
-            object : SchedulingTransaction {
-                override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-            },
+            sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID, sources.transaction,
         )
     }
     var mode by remember { mutableStateOf(ScheduleMode.DAY) }

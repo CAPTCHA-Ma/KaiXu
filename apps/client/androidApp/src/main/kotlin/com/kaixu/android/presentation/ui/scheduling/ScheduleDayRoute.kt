@@ -16,7 +16,6 @@ import com.kaixu.domain.model.scheduling.ScheduleDeadline
 import com.kaixu.domain.model.scheduling.ScheduleEntry
 import com.kaixu.domain.model.scheduling.ScheduleEntryType
 import com.kaixu.domain.model.scheduling.ScheduleView
-import com.kaixu.domain.repository.SchedulingTransaction
 import com.kaixu.domain.usecase.scheduling.ViewScheduleUseCase
 import java.time.Instant
 import java.time.LocalDate
@@ -38,10 +37,7 @@ private sealed interface ScheduleDetail {
 fun ScheduleDayRoute(sources: LocalDataSources, onBack: () -> Unit) {
     val schedule = remember(sources) {
         ViewScheduleUseCase(
-            sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID,
-            object : SchedulingTransaction {
-                override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-            },
+            sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID, sources.transaction,
         )
     }
     var selectedDate by remember { mutableStateOf(LocalDate.now(ScheduleZone)) }

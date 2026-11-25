@@ -10,7 +10,7 @@ import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceKind
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.repository.SchedulingTransaction
+import com.kaixu.domain.repository.DirectTransaction
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,10 +26,7 @@ class FixedEventScheduleTest {
     private val events = FakeEvents()
     private val sessions = FakeSessions()
     private val workspaces = FakeWorkspaces()
-    private val transaction = object : SchedulingTransaction {
-        override suspend fun <T> run(block: suspend () -> T): T = block()
-    }
-    private val schedule = FixedEventSchedule(events, sessions, workspaces, owner, transaction)
+    private val schedule = FixedEventSchedule(events, sessions, workspaces, owner, DirectTransaction)
 
     private fun millis(text: String) = ShanghaiTime.parseOrNull(text)!!
 
