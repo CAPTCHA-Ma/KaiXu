@@ -1,7 +1,15 @@
 package com.kaixu.data.repository
 
 import com.kaixu.data.datasource.TaskDataSource
+import com.kaixu.data.datasource.WorkSessionDataSource
+import com.kaixu.data.datasource.WorkspaceDataSource
+import com.kaixu.domain.model.scheduling.WorkSession
+import com.kaixu.domain.model.scheduling.WorkSessionStatus
 import com.kaixu.domain.model.tasks.*
+import com.kaixu.domain.model.workspaces.Workspace
+import com.kaixu.domain.model.workspaces.WorkspaceKind
+import com.kaixu.domain.model.workspaces.WorkspaceStatus
+import com.kaixu.domain.repository.LocalDataRevisionTracker
 import com.kaixu.domain.usecase.tasks.TaskUseCases
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -160,5 +168,131 @@ class DefaultTaskRepositoryTest {
         } }.awaitAll()
         assertEquals(20, repo.tasks.value.size)
         assertEquals(source.rows.values.toSet(), repo.tasks.value.toSet())
+    }
+
+    @Test fun revisionTracksConfirmedWritesAndChangedRefreshesOnly() = runTest {
+        val source = Source()
+        val revision = LocalDataRevisionTracker()
+        val repo = DefaultTaskRepository(source, revisionTracker = revision)
+        assertEquals(0L, repo.revision.value)
+
+        val task = repo.create(Task(id = "t1", title = "任务一"))
+        assertEquals(1L, repo.revision.value)
+
+        assertTrue(repo.update(task.copy(title = "任务一改")))
+        assertEquals(2L, repo.revision.value)
+
+        // 数据源与快照一致时 refresh 不递增修订号；外部直接变更后 refresh 才递增
+        repo.refresh()
+        assertEquals(2L, repo.revision.value)
+        source.rows["t2"] = Task(id = "t2", title = "外部新增")
+        assertEquals(2, repo.listAll().size)
+        assertEquals(1, repo.tasks.value.size)
+        assertEquals(2L, repo.revision.value)
+        repo.refresh()
+        assertEquals(3L, repo.revision.value)
+
+        assertTrue(repo.deleteById("t1"))
+        assertEquals(4L, repo.revision.value)
+
+        // 未命中或只读事务不递增修订号
+        assertFalse(repo.deleteById("missing"))
+        assertFalse(repo.update(Task(id = "missing", title = "不存在")))
+        assertEquals(4L, repo.revision.value)
+        val found = repo.writeTransaction { findTaskById("t2") }
+        assertEquals("外部新增", found?.title)
+        assertEquals(4L, repo.revision.value)
+
+        // 失败或取消的写操作不递增修订号
+        for (failure in listOf(IllegalStateException("db down"), CancellationException("cancelled"))) {
+            source.failure = failure
+            assertFails { repo.create(Task(id = "t3", title = "失败")) }
+            assertEquals(4L, repo.revision.value)
+        }
+    }
+
+    @Test fun writeTransactionCommitsMultiRecordChangesWithSingleRevisionOrRollsBackSnapshotOnFailure() = runTest {
+        val source = Source()
+        val revision = LocalDataRevisionTracker()
+        val fakeWorkspaces = object : WorkspaceDataSource {
+            val map = linkedMapOf(
+                "ws-own" to Workspace("ws-own", "alice", WorkspaceKind.COURSE, "我的课", null, null, WorkspaceStatus.ACTIVE, 1L, 1L, null),
+                "ws-other" to Workspace("ws-other", "bob", WorkspaceKind.PROJECT, "他人项目", null, null, WorkspaceStatus.ACTIVE, 1L, 1L, null),
+            )
+            override suspend fun listWorkspaces(status: WorkspaceStatus?): List<Workspace> =
+                map.values.filter { status == null || it.status == status }
+            override suspend fun findWorkspaceById(id: String): Workspace? = map[id]
+            override suspend fun listProjectsForCourse(courseId: String, status: WorkspaceStatus?): List<Workspace> = emptyList()
+            override suspend fun createWorkspace(kind: WorkspaceKind, name: String, description: String?, linkedCourseId: String?): Workspace = error("unused")
+            override suspend fun updateWorkspace(id: String, name: String, description: String?, linkedCourseId: String?): Boolean = false
+            override suspend fun archiveWorkspace(id: String): Boolean = false
+            override suspend fun restoreWorkspace(id: String): Boolean = false
+        }
+        val fakeSessions = object : WorkSessionDataSource {
+            val map = linkedMapOf(
+                "s-own" to WorkSession("s-own", "t1", 100L, 200L, ownerUserId = "alice"),
+                "s-other" to WorkSession("s-other", "t1", 300L, 400L, ownerUserId = "bob"),
+            )
+            var failUpdate = false
+            override suspend fun listWorkSessions(): List<WorkSession> = map.values.toList()
+            override suspend fun findWorkSessionById(id: String): WorkSession? = map[id]
+            override suspend fun createWorkSession(value: WorkSession): WorkSession = error("unused")
+            override suspend fun createWorkSessions(values: List<WorkSession>): List<WorkSession> = error("unused")
+            override suspend fun updateWorkSession(value: WorkSession): Boolean {
+                if (failUpdate) throw IllegalStateException("session write failed")
+                if (value.id !in map) return false
+                map[value.id] = value
+                return true
+            }
+            override suspend fun deleteWorkSessionById(id: String): Boolean = false
+            override suspend fun listWorkSessionsByTask(taskId: String): List<WorkSession> = map.values.filter { it.taskId == taskId }
+            override suspend fun listWorkSessionsByOwnerAndTask(ownerId: String, taskId: String): List<WorkSession> =
+                map.values.filter { it.ownerUserId == ownerId && it.taskId == taskId }
+            override suspend fun listWorkSessionsInRange(ownerId: String, start: Long, end: Long): List<WorkSession> = emptyList()
+        }
+
+        val repo = DefaultTaskRepository(
+            source = source,
+            workspaces = fakeWorkspaces,
+            workSessions = fakeSessions,
+            ownerUserId = "alice",
+            revisionTracker = revision,
+        )
+        assertEquals(listOf("ws-own"), repo.listWorkspaces().map { it.id })
+        assertNull(repo.findWorkspaceById("ws-other"))
+        assertEquals(listOf("s-own"), repo.listOwnerWorkSessions().map { it.id })
+
+        val original = repo.create(Task(id = "t1", title = "准备完成", createdBy = "alice", workspaceId = "ws-own"))
+        assertEquals(1L, revision.version.value)
+
+        // 若同一事务后续写入失败，前面暂存的内存快照不能提前发布，revision 也不应递增
+        fakeSessions.failUpdate = true
+        assertFailsWith<IllegalStateException> {
+            repo.writeTransaction {
+                assertTrue(replaceTask(original.copy(status = TaskStatus.COMPLETED, completedAt = 500L)))
+                updateOwnerWorkSession(fakeSessions.map.getValue("s-own").copy(status = WorkSessionStatus.CANCELLED))
+            }
+        }
+        assertEquals(TaskStatus.TODO, repo.tasks.value.single().status)
+        assertEquals(1L, revision.version.value)
+
+        // 恢复后同一事务内修改任务与本人时段，只发布一次 revision
+        fakeSessions.failUpdate = false
+        repo.writeTransaction {
+            assertTrue(replaceTask(original.copy(status = TaskStatus.COMPLETED, completedAt = 500L)))
+            assertTrue(updateOwnerWorkSession(fakeSessions.map.getValue("s-own").copy(status = WorkSessionStatus.CANCELLED)))
+            assertFailsWith<IllegalArgumentException> {
+                updateOwnerWorkSession(fakeSessions.map.getValue("s-other").copy(status = WorkSessionStatus.CANCELLED))
+            }
+            assertFalse(
+                updateOwnerWorkSession(
+                    fakeSessions.map.getValue("s-other").copy(ownerUserId = "alice", status = WorkSessionStatus.CANCELLED),
+                ),
+            )
+        }
+        assertEquals(TaskStatus.COMPLETED, repo.tasks.value.single().status)
+        assertEquals(WorkSessionStatus.CANCELLED, fakeSessions.map.getValue("s-own").status)
+        assertEquals(WorkSessionStatus.PLANNED, fakeSessions.map.getValue("s-other").status)
+        assertEquals(2L, revision.version.value)
     }
 }
