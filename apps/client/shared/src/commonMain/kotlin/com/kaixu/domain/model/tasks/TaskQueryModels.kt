@@ -1,8 +1,9 @@
 package com.kaixu.domain.model.tasks
 
+import com.kaixu.core.platform.CalendarDate
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.domain.model.scheduling.WorkSession
 import com.kaixu.domain.model.workspaces.Workspace
-import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import com.kaixu.domain.validation.tasks.TaskInput
 
 sealed interface TaskWorkspaceFilter {
@@ -34,23 +35,27 @@ sealed interface TaskDeadlineFilter {
     }
 }
 
-fun TaskDeadlineFilter.matches(task: Task, nowMillis: Long): Boolean {
-    val today = ShanghaiTime.localDateOf(nowMillis)
+fun TaskDeadlineFilter.matches(
+    task: Task,
+    nowMillis: Long,
+    zone: LocalZone = LocalZone.systemDefault(),
+): Boolean {
+    val today = zone.localDateOf(nowMillis)
     val taskDeadline = task.deadline
     return when (this) {
         TaskDeadlineFilter.All -> true
         TaskDeadlineFilter.NoDeadline -> taskDeadline == TaskDeadline.None
-        TaskDeadlineFilter.Overdue -> taskDeadline.isPastAt(nowMillis)
-        TaskDeadlineFilter.Today -> taskDeadline.localDateOrNull() == today
-        is TaskDeadlineFilter.OnDate -> taskDeadline.localDateOrNull() == date
+        TaskDeadlineFilter.Overdue -> taskDeadline.isPastAt(nowMillis, zone)
+        TaskDeadlineFilter.Today -> taskDeadline.localDateOrNull(zone) == today
+        is TaskDeadlineFilter.OnDate -> taskDeadline.localDateOrNull(zone) == date
         TaskDeadlineFilter.UpcomingSevenDays -> {
-            val endDateExclusive = ShanghaiTime.plusDays(today, 7)
-            val endMillisExclusive = ShanghaiTime.atLocalDate(endDateExclusive, 0)
+            val endDateExclusive = CalendarDate.plusDays(today, 7)
+            val endMillisExclusive = zone.startOfDayMillis(endDateExclusive)
             when (taskDeadline) {
                 TaskDeadline.None -> false
                 is TaskDeadline.DateOnly ->
-                    ShanghaiTime.compareDates(taskDeadline.date, today) >= 0 &&
-                        ShanghaiTime.compareDates(taskDeadline.date, endDateExclusive) < 0
+                    CalendarDate.compareDates(taskDeadline.date, today) >= 0 &&
+                        CalendarDate.compareDates(taskDeadline.date, endDateExclusive) < 0
                 is TaskDeadline.ExactTime ->
                     taskDeadline.epochMillis >= nowMillis && taskDeadline.epochMillis < endMillisExclusive
             }

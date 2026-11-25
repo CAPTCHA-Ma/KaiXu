@@ -1,11 +1,13 @@
 package com.kaixu.domain.model.tasks
 
-import com.kaixu.domain.validation.scheduling.ShanghaiTime
+import com.kaixu.core.platform.CalendarDate
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.domain.validation.tasks.TaskInput
 
 /**
  * 任务截止要求（密封类型）：无截止、仅日期与具体时刻三者互斥。
- * 仅日期截止按上海时区自然日理解，不伪造 23:59 时刻；逾期在次日上海零点后判定。
+ * 仅日期截止按目标时区（默认跟随系统时区）的自然日理解，不伪造 23:59 时刻；
+ * 逾期在对应时区次日零点后判定。
  */
 sealed interface TaskDeadline {
     data object None : TaskDeadline
@@ -35,23 +37,28 @@ fun Task.withDeadline(deadline: TaskDeadline): Task = when (deadline) {
     is TaskDeadline.ExactTime -> copy(deadlineDate = null, deadlineAt = deadline.epochMillis)
 }
 
-fun TaskDeadline.localDateOrNull(): String? = when (this) {
+fun TaskDeadline.localDateOrNull(zone: LocalZone = LocalZone.systemDefault()): String? = when (this) {
     TaskDeadline.None -> null
     is TaskDeadline.DateOnly -> date
-    is TaskDeadline.ExactTime -> ShanghaiTime.localDateOf(epochMillis)
+    is TaskDeadline.ExactTime -> zone.localDateOf(epochMillis)
 }
 
-fun TaskDeadline.isPastAt(nowMillis: Long): Boolean = when (this) {
+fun TaskDeadline.isPastAt(
+    nowMillis: Long,
+    zone: LocalZone = LocalZone.systemDefault(),
+): Boolean = when (this) {
     TaskDeadline.None -> false
-    is TaskDeadline.DateOnly -> ShanghaiTime.compareDates(date, ShanghaiTime.localDateOf(nowMillis)) < 0
+    is TaskDeadline.DateOnly -> CalendarDate.compareDates(date, zone.localDateOf(nowMillis)) < 0
     is TaskDeadline.ExactTime -> epochMillis < nowMillis
 }
 
-fun Task.isOverdueAt(nowMillis: Long): Boolean =
-    status != TaskStatus.COMPLETED && deadline.isPastAt(nowMillis)
+fun Task.isOverdueAt(
+    nowMillis: Long,
+    zone: LocalZone = LocalZone.systemDefault(),
+): Boolean = status != TaskStatus.COMPLETED && deadline.isPastAt(nowMillis, zone)
 
-fun TaskDeadline.sortKeyMillis(): Long = when (this) {
+fun TaskDeadline.sortKeyMillis(zone: LocalZone = LocalZone.systemDefault()): Long = when (this) {
     TaskDeadline.None -> Long.MAX_VALUE
-    is TaskDeadline.DateOnly -> ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(date, 1), 0) - 1
+    is TaskDeadline.DateOnly -> zone.startOfNextDayMillis(date) - 1
     is TaskDeadline.ExactTime -> epochMillis
 }

@@ -1,6 +1,6 @@
 package com.kaixu.domain.model.tasks
 
-import com.kaixu.domain.validation.scheduling.ShanghaiTime
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.domain.validation.tasks.TaskInput
 import com.kaixu.domain.validation.tasks.TaskTitle
 import kotlin.test.Test
@@ -44,25 +44,30 @@ class TaskDomainAndValidationTest {
     }
 
     @Test
-    fun overdueAndPastChecksRespectShanghaiDateBoundaryAndCompletionStatus() {
-        val endOfNov25 = ShanghaiTime.atLocalDate("2026-11-26", 0) - 1
-        val startOfNov26 = ShanghaiTime.atLocalDate("2026-11-26", 0)
-
-        assertFalse(TaskDeadline.None.isPastAt(startOfNov26))
-        assertFalse(Task(id = "no-ddl", title = "无截止").isOverdueAt(startOfNov26))
+    fun overdueAndPastChecksRespectZoneDateBoundaryAndCompletionStatus() {
+        // 默认跟随系统时区的边界检查（无论宿主位于 UTC 或任意时区均保持确定）
+        val sysZone = LocalZone.systemDefault()
+        val sysMidnight = sysZone.startOfDayMillis("2026-11-26")
+        assertFalse(TaskDeadline.None.isPastAt(sysMidnight))
+        assertFalse(Task(id = "no-ddl", title = "无截止").isOverdueAt(sysMidnight))
 
         val dateDeadline = TaskDeadline.DateOnly("2026-11-25")
-        assertFalse(dateDeadline.isPastAt(endOfNov25))
-        assertTrue(dateDeadline.isPastAt(startOfNov26))
+        assertFalse(dateDeadline.isPastAt(sysMidnight - 1))
+        assertTrue(dateDeadline.isPastAt(sysMidnight))
 
+        // 显式注入不同目标时区验证跨时区判定
+        val shanghaiZone = LocalZone.of("Asia/Shanghai")
+        val utcZone = LocalZone.of("UTC")
+        val shanghaiMidnight = shanghaiZone.startOfDayMillis("2026-11-26")
         val dateTask = Task(id = "date-task", title = "日期截止", deadlineDate = "2026-11-25")
-        assertFalse(dateTask.isOverdueAt(endOfNov25))
-        assertTrue(dateTask.isOverdueAt(startOfNov26))
+        assertFalse(dateTask.isOverdueAt(shanghaiMidnight - 1, shanghaiZone))
+        assertTrue(dateTask.isOverdueAt(shanghaiMidnight, shanghaiZone))
+        assertFalse(dateTask.isOverdueAt(shanghaiMidnight, utcZone))
 
-        val exactMillis = ShanghaiTime.parseOrNull("2026-11-25 18:00")!!
+        val exactMillis = shanghaiZone.startOfDayMillis("2026-11-25") + 18L * 3_600_000L
         val exactDeadline = TaskDeadline.ExactTime(exactMillis)
-        assertFalse(exactDeadline.isPastAt(exactMillis))
-        assertTrue(exactDeadline.isPastAt(exactMillis + 1))
+        assertFalse(exactDeadline.isPastAt(exactMillis, shanghaiZone))
+        assertTrue(exactDeadline.isPastAt(exactMillis + 1, shanghaiZone))
 
         val completedTask = Task(
             id = "done",
@@ -71,20 +76,22 @@ class TaskDomainAndValidationTest {
             completedAt = exactMillis - 1000,
             deadlineAt = exactMillis,
         )
-        assertTrue(completedTask.deadline.isPastAt(exactMillis + 1))
-        assertFalse(completedTask.isOverdueAt(exactMillis + 1))
+        assertTrue(completedTask.deadline.isPastAt(exactMillis + 1, shanghaiZone))
+        assertFalse(completedTask.isOverdueAt(exactMillis + 1, shanghaiZone))
     }
 
     @Test
     fun sortKeyOrdersSameDayExactBeforeDateOnlyAndNoneLast() {
-        val sameDayNoon = TaskDeadline.ExactTime(ShanghaiTime.parseOrNull("2026-11-25 12:00")!!)
-        val sameDayLate = TaskDeadline.ExactTime(ShanghaiTime.parseOrNull("2026-11-25 23:59")!!)
+        val zone = LocalZone.of("Asia/Shanghai")
+        val dayStart = zone.startOfDayMillis("2026-11-25")
+        val sameDayNoon = TaskDeadline.ExactTime(dayStart + 12L * 3_600_000L)
+        val sameDayLate = TaskDeadline.ExactTime(dayStart + 23L * 3_600_000L + 59L * 60_000L)
         val sameDayDateOnly = TaskDeadline.DateOnly("2026-11-25")
-        val nextDayMidnight = TaskDeadline.ExactTime(ShanghaiTime.atLocalDate("2026-11-26", 0))
+        val nextDayMidnight = TaskDeadline.ExactTime(zone.startOfDayMillis("2026-11-26"))
         val none = TaskDeadline.None
 
         val sorted = listOf(none, nextDayMidnight, sameDayDateOnly, sameDayLate, sameDayNoon)
-            .sortedBy { it.sortKeyMillis() }
+            .sortedBy { it.sortKeyMillis(zone) }
 
         assertEquals(
             listOf(sameDayNoon, sameDayLate, sameDayDateOnly, nextDayMidnight, none),
@@ -105,14 +112,15 @@ class TaskDomainAndValidationTest {
         assertFalse(TaskWorkspaceFilter.Workspace("ws-1").matches("ws-2"))
         assertFalse(TaskWorkspaceFilter.Workspace("ws-1").matches(null))
 
-        val now = ShanghaiTime.parseOrNull("2026-11-25 15:00")!!
+        val zone = LocalZone.of("America/New_York")
+        val now = zone.startOfDayMillis("2026-11-25") + 15L * 3_600_000L
         val noDeadlineTask = Task(id = "t0", title = "无截止")
         val yesterdayDateTask = Task(id = "t1", title = "昨日截止", deadlineDate = "2026-11-24")
         val todayDateTask = Task(id = "t2", title = "今日日期", deadlineDate = "2026-11-25")
         val todayPastExactTask = Task(
             id = "t3",
             title = "今日已过时刻",
-            deadlineAt = ShanghaiTime.parseOrNull("2026-11-25 14:59")!!,
+            deadlineAt = now - 60_000L,
         )
         val todayFutureExactTask = Task(
             id = "t4",
@@ -124,41 +132,41 @@ class TaskDomainAndValidationTest {
         val day6EndExactTask = Task(
             id = "t7",
             title = "第7天末时刻",
-            deadlineAt = ShanghaiTime.atLocalDate("2026-12-02", 0) - 1,
+            deadlineAt = zone.startOfDayMillis("2026-12-02") - 1,
         )
         val day7StartExactTask = Task(
             id = "t8",
             title = "第8天零点时刻",
-            deadlineAt = ShanghaiTime.atLocalDate("2026-12-02", 0),
+            deadlineAt = zone.startOfDayMillis("2026-12-02"),
         )
 
-        assertTrue(TaskDeadlineFilter.All.matches(noDeadlineTask, now))
-        assertTrue(TaskDeadlineFilter.NoDeadline.matches(noDeadlineTask, now))
-        assertFalse(TaskDeadlineFilter.NoDeadline.matches(todayDateTask, now))
+        assertTrue(TaskDeadlineFilter.All.matches(noDeadlineTask, now, zone))
+        assertTrue(TaskDeadlineFilter.NoDeadline.matches(noDeadlineTask, now, zone))
+        assertFalse(TaskDeadlineFilter.NoDeadline.matches(todayDateTask, now, zone))
 
-        assertFalse(TaskDeadlineFilter.Overdue.matches(noDeadlineTask, now))
-        assertTrue(TaskDeadlineFilter.Overdue.matches(yesterdayDateTask, now))
-        assertFalse(TaskDeadlineFilter.Overdue.matches(todayDateTask, now))
-        assertTrue(TaskDeadlineFilter.Overdue.matches(todayPastExactTask, now))
-        assertFalse(TaskDeadlineFilter.Overdue.matches(todayFutureExactTask, now))
+        assertFalse(TaskDeadlineFilter.Overdue.matches(noDeadlineTask, now, zone))
+        assertTrue(TaskDeadlineFilter.Overdue.matches(yesterdayDateTask, now, zone))
+        assertFalse(TaskDeadlineFilter.Overdue.matches(todayDateTask, now, zone))
+        assertTrue(TaskDeadlineFilter.Overdue.matches(todayPastExactTask, now, zone))
+        assertFalse(TaskDeadlineFilter.Overdue.matches(todayFutureExactTask, now, zone))
 
-        assertTrue(TaskDeadlineFilter.Today.matches(todayDateTask, now))
-        assertTrue(TaskDeadlineFilter.Today.matches(todayPastExactTask, now))
-        assertTrue(TaskDeadlineFilter.Today.matches(todayFutureExactTask, now))
-        assertFalse(TaskDeadlineFilter.Today.matches(yesterdayDateTask, now))
+        assertTrue(TaskDeadlineFilter.Today.matches(todayDateTask, now, zone))
+        assertTrue(TaskDeadlineFilter.Today.matches(todayPastExactTask, now, zone))
+        assertTrue(TaskDeadlineFilter.Today.matches(todayFutureExactTask, now, zone))
+        assertFalse(TaskDeadlineFilter.Today.matches(yesterdayDateTask, now, zone))
 
-        assertTrue(TaskDeadlineFilter.OnDate("2026-12-01").matches(day6DateTask, now))
-        assertFalse(TaskDeadlineFilter.OnDate("2026-12-01").matches(day7DateTask, now))
+        assertTrue(TaskDeadlineFilter.OnDate("2026-12-01").matches(day6DateTask, now, zone))
+        assertFalse(TaskDeadlineFilter.OnDate("2026-12-01").matches(day7DateTask, now, zone))
 
-        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(noDeadlineTask, now))
-        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(yesterdayDateTask, now))
-        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(todayDateTask, now))
-        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(todayPastExactTask, now))
-        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(todayFutureExactTask, now))
-        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(day6DateTask, now))
-        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(day7DateTask, now))
-        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(day6EndExactTask, now))
-        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(day7StartExactTask, now))
+        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(noDeadlineTask, now, zone))
+        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(yesterdayDateTask, now, zone))
+        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(todayDateTask, now, zone))
+        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(todayPastExactTask, now, zone))
+        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(todayFutureExactTask, now, zone))
+        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(day6DateTask, now, zone))
+        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(day7DateTask, now, zone))
+        assertTrue(TaskDeadlineFilter.UpcomingSevenDays.matches(day6EndExactTask, now, zone))
+        assertFalse(TaskDeadlineFilter.UpcomingSevenDays.matches(day7StartExactTask, now, zone))
     }
 
     @Test
