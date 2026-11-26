@@ -1,12 +1,26 @@
 package com.kaixu.domain.usecase.tasks
 
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.repository.TaskRepository
 import com.kaixu.domain.validation.tasks.TaskInput
 import kotlinx.coroutines.flow.StateFlow
 
 /** 任务业务动作的统一入口；共用一个仓储，不维护额外列表或页面状态。 */
-class TaskUseCases(private val repository: TaskRepository) {
+class TaskUseCases(
+    private val repository: TaskRepository,
+    defaultZone: LocalZone = LocalZone.systemDefault(),
+) {
+    val queryTasks = QueryTasksUseCase(repository, defaultZone)
+    val getDetail = GetTaskDetailUseCase(repository, defaultZone)
+    val createFromDraft = CreateTaskUseCase(repository)
+    val updateFromDraft = UpdateTaskUseCase(repository)
+    val complete = CompleteTaskUseCase(repository)
+    val reopen = ReopenTaskUseCase(repository)
+    val delete = DeleteTaskUseCase(repository)
+
+    val revision: StateFlow<Long> get() = repository.revision
+
     /** 校验完整业务字段并规范化标题，返回已经保存的任务。 */
     suspend fun create(task: Task): Task = repository.create(TaskInput.normalized(task))
 

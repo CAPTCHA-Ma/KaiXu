@@ -76,7 +76,7 @@ class LocalScheduleScreenTest {
             if (visible.value) {
                 CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {
                     Box(Modifier.fillMaxSize()) {
-                        DesktopApp(AppGraph(sources.tasks, sources.fixedEvents), localDataSources = sources)
+                        DesktopApp(AppGraph(sources), localDataSources = sources)
                     }
                 }
             }

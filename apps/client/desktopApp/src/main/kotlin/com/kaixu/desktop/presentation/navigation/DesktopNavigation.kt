@@ -18,7 +18,6 @@ import com.kaixu.desktop.presentation.ui.settings.SettingsScreen
 import com.kaixu.desktop.presentation.ui.home.HomeScreen
 import com.kaixu.desktop.presentation.ui.home.HomeRoute
 import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
-import com.kaixu.domain.repository.SchedulingTransaction
 import com.kaixu.domain.usecase.scheduling.AgendaUseCase
 import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
 import com.kaixu.desktop.presentation.ui.tasks.TaskEditorRoute
@@ -110,9 +109,7 @@ fun DesktopNavigation(
                                 sources.workSessions,
                                 sources.workspaces,
                                 LOCAL_ACTOR_ID,
-                                object : SchedulingTransaction {
-                                    override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-                                },
+                                sources.transaction,
                             ),
                         )
                     }
@@ -184,7 +181,7 @@ fun DesktopNavigation(
                     val target = requireNotNull(entry.arguments).read {
                         LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
                     }
-                    LocalRecordRoute(target, sources, onBack = navigator::back)
+                    LocalRecordRoute(target, sources, onBack = navigator::back, taskUseCases = graph.taskUseCases)
                 }
             }
         }

@@ -74,7 +74,7 @@ class HomeAgendaScreenTest {
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.wrapContentWidth(Alignment.Start, unbounded = unboundedWidth)
                         .width(hostWidth.value).height(hostHeight.value)) {
-                        DesktopApp(AppGraph(sources.tasks, sources.fixedEvents), localDataSources = sources)
+                        DesktopApp(AppGraph(sources), localDataSources = sources)
                     }
                 }
             }

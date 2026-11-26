@@ -6,7 +6,7 @@ import com.kaixu.domain.repository.*
 class StartFocusSessionUseCase(
     private val plans: WorkSessionRepository,
     private val focus: FocusRepository,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
 ) {
     /** 调用方保存稳定 sessionId 用于重试；实际开始时间允许在计划窗口外。 */
     suspend operator fun invoke(workSessionId: String, startedAt: Long, sessionId: String = newSchedulingId()): FocusSession = transaction.run {
@@ -30,7 +30,7 @@ class StartFocusSessionUseCase(
 class ControlFocusSessionUseCase(
     private val plans: WorkSessionRepository,
     private val focus: FocusRepository,
-    private val transaction: SchedulingTransaction,
+    private val transaction: LocalTransaction,
 ) {
     suspend fun pause(sessionId: String, finalSegment: FocusSegment? = null): FocusSession = transaction.run {
         val current = requireSession(sessionId)
@@ -81,7 +81,7 @@ class ControlFocusSessionUseCase(
     }
 }
 
-class RecordFocusSegmentUseCase(private val focus: FocusRepository, private val transaction: SchedulingTransaction) {
+class RecordFocusSegmentUseCase(private val focus: FocusRepository, private val transaction: LocalTransaction) {
     suspend operator fun invoke(segment: FocusSegment): FocusSegment = transaction.run {
         val session = requireNotNull(focus.findSessionById(segment.sessionId)) { "计时会话不存在或不属于本人" }
         val existing = focus.listSegments(session.id).firstOrNull { it.clientSegmentId == segment.clientSegmentId }
@@ -97,7 +97,7 @@ data class FocusSummary(
 )
 
 /** 汇总所有本人会话，包含窗口外计时及软删除计划的历史；不自动完成任务或时段。 */
-class GetFocusSummaryUseCase(private val focus: FocusRepository, private val transaction: SchedulingTransaction) {
+class GetFocusSummaryUseCase(private val focus: FocusRepository, private val transaction: LocalTransaction) {
     suspend operator fun invoke(workSessionId: String): FocusSummary = transaction.run {
         FocusSummary(workSessionId, focus.listSessions(workSessionId), focus.getDuration(workSessionId))
     }

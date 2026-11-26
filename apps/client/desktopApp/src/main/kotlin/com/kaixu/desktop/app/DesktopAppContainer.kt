@@ -16,10 +16,7 @@ class DesktopAppContainer : ViewModel() {
     val scheduling = LocalSchedulingGraph(localDataSources, LOCAL_ACTOR_ID) { millis ->
         Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Shanghai")).toLocalDate().toString()
     }
-    val graph = AppGraph(
-        source = localDataSources.tasks,
-        fixedEventSource = localDataSources.fixedEvents,
-    )
+    val graph = AppGraph(localDataSources)
 
     override fun onCleared() {
         database.close()

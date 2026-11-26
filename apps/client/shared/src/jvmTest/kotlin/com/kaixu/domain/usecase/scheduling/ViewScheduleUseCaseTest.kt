@@ -12,7 +12,6 @@ import com.kaixu.domain.model.scheduling.WorkSessionStatus
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.workspaces.WorkspaceKind
-import com.kaixu.domain.repository.SchedulingTransaction
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import java.io.File
 import java.nio.file.Files
@@ -45,10 +44,7 @@ class ViewScheduleUseCaseTest {
     }
 
     private fun useCase(sources: LocalDataSources) = ViewScheduleUseCase(
-        sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID,
-        object : SchedulingTransaction {
-            override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-        },
+        sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID, sources.transaction,
     )
 
     @Test

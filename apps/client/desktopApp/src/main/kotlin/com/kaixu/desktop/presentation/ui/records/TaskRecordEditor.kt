@@ -25,9 +25,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
+import com.kaixu.data.repository.DefaultTaskRepository
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskStatus
-import com.kaixu.domain.model.workspaces.WorkspaceStatus
+import com.kaixu.domain.model.tasks.toDraft
+import com.kaixu.domain.usecase.tasks.TaskUseCases
 import com.kaixu.domain.validation.tasks.TaskTitle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -38,7 +40,9 @@ internal fun TaskRecordEditor(
     sources: LocalDataSources,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    taskUseCases: TaskUseCases? = null,
 ) {
+    val activeTaskUseCases = taskUseCases ?: remember(sources) { localTaskUseCases(sources) }
     var title by remember(task.id) { mutableStateOf(task.title) }
     var description by remember(task.id) { mutableStateOf(task.description.orEmpty()) }
     var status by remember(task.id) { mutableStateOf(task.status) }
@@ -124,7 +128,14 @@ internal fun TaskRecordEditor(
                         scope.launch {
                             var committed = false
                             try {
-                                saveLocalTaskRecordEdit(task, titleToSave, descriptionToSave, statusToSave, sources)
+                                saveLocalTaskRecordEdit(
+                                    original = task,
+                                    draftTitle = titleToSave,
+                                    draftDescription = descriptionToSave,
+                                    draftStatus = statusToSave,
+                                    sources = sources,
+                                    taskUseCases = activeTaskUseCases,
+                                )
                                 committed = true
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
@@ -153,50 +164,33 @@ internal fun TaskRecordEditor(
     )
 }
 
-/** 保存前重读原记录，只合并本次修改的字段；完成命令由 UC11 处理。 */
+internal fun localTaskUseCases(sources: LocalDataSources): TaskUseCases = TaskUseCases(
+    DefaultTaskRepository(
+        source = sources.tasks,
+        workspaces = sources.workspaces,
+        workSessions = sources.workSessions,
+        ownerUserId = LOCAL_ACTOR_ID,
+        transaction = sources.transaction,
+    ),
+)
+
+/** 经由 TaskUseCases 执行字段级冲突合并，完成后由 UC11 处理未来时段。 */
 internal suspend fun saveLocalTaskRecordEdit(
     original: Task,
     draftTitle: String,
     draftDescription: String,
     draftStatus: TaskStatus,
     sources: LocalDataSources,
+    taskUseCases: TaskUseCases = localTaskUseCases(sources),
 ) {
-    val titleError = TaskTitle.errorOrNull(draftTitle)
-    require(titleError == null) { titleError.orEmpty() }
-    sources.writeTransaction {
-        val latest = checkNotNull(sources.tasks.findTaskById(original.id)) { "任务已不可用，请关闭后刷新列表。" }
-        require(latest.createdBy == LOCAL_ACTOR_ID) { "当前只能编辑本人创建的本地任务。" }
-        require(latest.workspaceId == original.workspaceId && latest.createdBy == original.createdBy) {
-            "任务归属已变化，请关闭后重新打开。"
-        }
-        latest.workspaceId?.let { workspaceId ->
-            val workspace = sources.workspaces.findWorkspaceById(workspaceId)
-            require(workspace != null && workspace.ownerUserId == LOCAL_ACTOR_ID && workspace.status == WorkspaceStatus.ACTIVE) {
-                "所属工作区已归档或不可用，请关闭后刷新列表。"
-            }
-        }
-        val title = draftTitle.trim()
-        val titleChanged = title != original.title
-        val descriptionChanged = draftDescription != original.description.orEmpty()
-        val description = draftDescription.takeUnless { it.isBlank() }
-        val statusChanged = draftStatus != original.status
-        require(!titleChanged || latest.title == original.title || latest.title == title) {
-            "任务标题已被修改，请关闭后重新打开。"
-        }
-        require(!descriptionChanged || latest.description == original.description || latest.description == description) {
-            "任务说明已被修改，请关闭后重新打开。"
-        }
-        require(!statusChanged || original.status != TaskStatus.COMPLETED && draftStatus != TaskStatus.COMPLETED) {
-            "完成状态请通过任务完成流程处理。"
-        }
-        require(!statusChanged || latest.status == original.status || latest.status == draftStatus) {
-            "任务状态已变化，请关闭后重新打开。"
-        }
-        val edited = latest.copy(
-            title = if (titleChanged) title else latest.title,
-            description = if (descriptionChanged) description else latest.description,
-            status = if (statusChanged) draftStatus else latest.status,
-        )
-        check(sources.tasks.updateTask(edited)) { "任务已不可用，请关闭后刷新列表。" }
-    }
+    val draft = original.toDraft().copy(
+        title = draftTitle,
+        description = draftDescription,
+    )
+    taskUseCases.updateFromDraft(
+        taskId = original.id,
+        draft = draft,
+        nextStatus = draftStatus,
+        expectedOriginal = original,
+    )
 }

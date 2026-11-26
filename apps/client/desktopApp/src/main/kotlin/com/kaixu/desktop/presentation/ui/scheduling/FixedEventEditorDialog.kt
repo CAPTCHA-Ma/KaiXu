@@ -15,7 +15,6 @@ import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.FixedEventDraft
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.repository.SchedulingTransaction
 import com.kaixu.domain.usecase.scheduling.FixedEventConfirmation
 import com.kaixu.domain.usecase.scheduling.FixedEventSaveResult
 import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
@@ -82,10 +81,7 @@ internal fun FixedEventEditorDialog(
 ) {
     val schedule = remember(sources) {
         FixedEventSchedule(
-            sources.fixedEvents, sources.workSessions, sources.workspaces, LOCAL_ACTOR_ID,
-            object : SchedulingTransaction {
-                override suspend fun <T> run(block: suspend () -> T): T = sources.writeTransaction(block)
-            },
+            sources.fixedEvents, sources.workSessions, sources.workspaces, LOCAL_ACTOR_ID, sources.transaction,
         )
     }
     val defaultStart = remember { defaultEventStart() }

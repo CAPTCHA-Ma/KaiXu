@@ -19,6 +19,7 @@ import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
 import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
 import com.kaixu.desktop.presentation.ui.workspaces.localMoment
+import com.kaixu.domain.usecase.tasks.TaskUseCases
 import kotlinx.coroutines.CancellationException
 
 enum class RecordKind { TASK, EVENT, SESSION }
@@ -37,15 +38,22 @@ private fun canEdit(createdBy: String, workspaceId: String?, workspace: Workspac
 
 /** 全局和工作区入口共用同一原记录详情和编辑入口。 */
 @Composable
-fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBack: () -> Unit) {
+fun LocalRecordRoute(
+    target: LocalRecordTarget,
+    sources: LocalDataSources,
+    onBack: () -> Unit,
+    taskUseCases: TaskUseCases? = null,
+) {
+    val activeTaskUseCases = taskUseCases ?: remember(sources) { localTaskUseCases(sources) }
     var retry by remember(target) { mutableIntStateOf(0) }
     var editing by remember(target) { mutableStateOf(false) }
-    val state by produceState(RecordState(), target, retry) {
+    val state by produceState(RecordState(), target, retry, activeTaskUseCases) {
         value = RecordState()
         try {
             val details = when (target.kind) {
-                RecordKind.TASK -> sources.tasks.findTaskById(target.id)?.let { task ->
-                    val workspace = task.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
+                RecordKind.TASK -> activeTaskUseCases.getDetail(target.id)?.let { detail ->
+                    val task = detail.task
+                    val workspace = detail.workspace
                     RecordDetails(task.title, listOfNotNull(
                         task.description?.let { "说明" to it },
                         "状态" to when (task.status) {
@@ -55,7 +63,7 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
                         },
                         "截止要求" to (task.deadlineDate ?: task.deadlineAt?.let(::localMoment) ?: "无截止"),
                         "所属工作区" to (workspace?.name ?: if (task.workspaceId == null) "独立任务" else "关联工作区暂不可用"),
-                    ), editableTask = task.takeIf { canEdit(it.createdBy, it.workspaceId, workspace) })
+                    ), editableTask = task.takeIf { detail.canEdit })
                 }
                 RecordKind.EVENT -> sources.fixedEvents.findEventById(target.id)?.let { event ->
                     val workspace = event.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
@@ -137,7 +145,7 @@ fun LocalRecordRoute(target: LocalRecordTarget, sources: LocalDataSources, onBac
     if (editing) {
         val onSaved: () -> Unit = { editing = false; retry++ }
         val onDismiss: () -> Unit = { editing = false }
-        state.details?.editableTask?.let { TaskRecordEditor(it, sources, onDismiss, onSaved) }
+        state.details?.editableTask?.let { TaskRecordEditor(it, sources, onDismiss, onSaved, taskUseCases = activeTaskUseCases) }
         state.details?.editableEvent?.let { event ->
             FixedEventEditorDialog(
                 sources = sources,

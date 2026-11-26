@@ -53,6 +53,9 @@ class AppNavigationTest {
             }
         },
         fixedEventSource = sources.fixedEvents,
+        workspaces = sources.workspaces,
+        workSessions = sources.workSessions,
+        transaction = sources.transaction,
     )
 
     @After

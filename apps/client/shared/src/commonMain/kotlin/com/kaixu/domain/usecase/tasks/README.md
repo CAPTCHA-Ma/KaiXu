@@ -1,31 +1,30 @@
 # 任务业务动作
 
-`TaskUseCases.kt` 将依赖同一个 TaskRepository 的任务操作集中在一个类中，通过明确的方法名调用。
+`TaskUseCases.kt` 将依赖同一个 `TaskRepository` 的任务领域操作集中在一个类中，按职责暴露：
 
-- `create(task)`：接收完整 Task，复用 TaskInput 校验、规范化标题，返回保存的 Task。
-- `update(task)`：接收完整 Task，校验并按 id 替换所有业务字段；未命中返回 false。
-- `deleteById(id)`：按非空 id 软删除；未命中返回 false。
-- `findById(id)`：按非空 id 查找；未命中返回 null。
-- `listByWorkspace(workspaceId)`：按非空工作区 id 筛选。
-- `search(keyword)`：按标题/描述关键字查询，空关键字列出全部活动任务。
-- `observe()`：返回仓储的已确认任务流，不额外维护一份列表。
-- `refresh()`：请求重新读取，异常交给 ViewModel 展示。
+- **领域查询与命令**：
+  - `queryTasks`：按工作区、状态、截止条件（基于系统时区 `LocalZone` 判定逾期与边界）、关键字与排序返回 `TaskListSnapshot`（含不变工作区统计与可编辑标志），并支持 `observe(queryFlow)` 随修订号自动重算。
+  - `getDetail`：读取单条任务详情 `TaskDetail`，聚合所属工作区、`canEdit` 与关联个人时段列表。
+  - `createFromDraft` / `updateFromDraft`：接收 `TaskDraft` 在本地事务中校验本人与进行中工作区归属后创建或编辑（支持 `expectedOriginal` 字段级乐观冲突合并）。
+  - `complete`：在同一 `LocalTransaction` 内完成任务并按 `FutureSessionPolicy`（提示确认 / 保留 / 取消未来计划时段）处理 UC11。
+  - `reopen` / `delete`：按权限校验将已完成任务恢复为待办或进行中，或软删除任务并脱链时段。
+  - `revision`：转发仓储 `StateFlow<Long>` 本地修订信号。
+- **兼容既有调用的方法**：`create(task)`、`update(task)`、`deleteById(id)`、`findById(id)`、`listByWorkspace(workspaceId)`、`search(keyword)`、`observe()`、`refresh()`，仍复用 `TaskInput` 校验与事务写入。
 
-写新动作时先说明输入、输出、校验与失败行为。未来 `CompleteTaskUseCase` 应接收“保留还是取消我的未来时段”，调用后端原子命令，不能先本地改状态再逐条删除时段。
+写新动作时先说明输入、输出、校验与失败行为；单方法调用如需跨实体原子语义，应在仓储 `writeTransaction` / `LocalTransaction` 中协同实现。
 
 ## 扩展任务动作
 
-以上动作统一通过 `AppGraph.taskUseCases` 暴露，ViewModel 注入这一个实例。
-状态与完成时间可以通过 `update` 一起编辑；涉及未来时段处置的完整任务完成流程仍待原子命令接入。
-聚合类不代表合并事务：多个方法连续调用并不会自动成为一次原子操作。
+以上动作统一通过 `AppGraph.taskUseCases` 暴露，ViewModel 与页面逻辑直接注入这一个实例。
+聚合类不代表跨方法自动合并事务：多个独立方法连续调用不会自动合成为一次原子操作。
 
 ```kotlin
 val tasks = graph.taskUseCases
-val saved = tasks.create(Task(title = "复习", description = "第三章", estimatedMinutes = 45))
-val found = tasks.findById(saved.id)
-tasks.update(saved.copy(description = null, priority = TaskPriority.HIGH))
-val matches = tasks.search("复习")
-tasks.deleteById(saved.id)
+val saved = tasks.createFromDraft(TaskDraft(title = "复习", description = "第三章", estimatedMinutes = 45))
+val detail = tasks.getDetail(saved.id)
+tasks.updateFromDraft(saved.id, TaskDraft(title = "复习", priority = TaskPriority.HIGH))
+val snapshot = tasks.queryTasks(TaskQuery(keyword = "复习"))
+tasks.delete(saved.id)
 ```
 
 ## 验证
@@ -36,6 +35,3 @@ tasks.deleteById(saved.id)
 .\gradlew.bat -PdesktopOnly=true :shared:jvmTest :desktopApp:test
 .\gradlew.bat :androidApp:compileDebugKotlin
 ```
-
-本次迁移通过 76 项共享层 JVM 测试及 15 项桌面测试，Android debug Kotlin 编译通过。
-原有输入校验、CRUD、搜索筛选、订阅刷新、保存失败与取消、持久化及任务删除后的时段脱链继续由既有测试覆盖。
