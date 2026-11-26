@@ -1,7 +1,8 @@
 package com.kaixu.domain.usecase.tasks
 
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import androidx.sqlite.execSQL
+import androidx.room.execSQL
+import androidx.room.useWriterConnection
+import androidx.sqlite.SQLiteException
 import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.database.openDesktopDatabase
@@ -24,8 +25,8 @@ import com.kaixu.domain.repository.LocalDataRevisionTracker
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -193,14 +194,15 @@ class TaskUseCasesDatabaseTest {
                 )
                 val revisionBeforeAbort = useCases.revision.value
 
-                BundledSQLiteDriver().open(file.absolutePath).use { conn ->
+                db.useWriterConnection { conn ->
                     conn.execSQL(
                         "CREATE TRIGGER abort_cancel BEFORE UPDATE ON work_sessions BEGIN SELECT RAISE(ABORT, 'simulated failure'); END",
                     )
                 }
-                assertFails {
+                val rejected = assertFailsWith<SQLiteException> {
                     useCases.complete(task.id, nowMillis = now, policy = FutureSessionPolicy.CANCEL_FUTURE)
                 }
+                assertContains(rejected.message.orEmpty(), "simulated failure")
                 assertEquals(TaskStatus.TODO, sources.tasks.findTaskById(task.id)?.status)
                 assertNull(sources.tasks.findTaskById(task.id)?.completedAt)
                 assertEquals(WorkSessionStatus.PLANNED, sources.workSessions.findWorkSessionById(futurePlan.id)?.status)
