@@ -2,9 +2,17 @@ package com.kaixu.app.di
 
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
+import com.kaixu.data.datasource.WorkSessionDataSource
+import com.kaixu.data.datasource.WorkspaceDataSource
+import com.kaixu.data.datasource.local.LocalDataSources
+import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.data.repository.DefaultFixedEventRepository
 import com.kaixu.data.repository.DefaultTaskRepository
+import com.kaixu.domain.repository.DirectTransaction
 import com.kaixu.domain.repository.FixedEventRepository
+import com.kaixu.domain.repository.LocalDataRevision
+import com.kaixu.domain.repository.LocalDataRevisionTracker
+import com.kaixu.domain.repository.LocalTransaction
 import com.kaixu.domain.repository.TaskRepository
 import com.kaixu.domain.usecase.scheduling.CreateFixedEventUseCase
 import com.kaixu.domain.usecase.scheduling.DeleteFixedEventUseCase
@@ -20,8 +28,34 @@ import com.kaixu.domain.usecase.tasks.TaskUseCases
 class AppGraph(
     source: TaskDataSource,
     fixedEventSource: FixedEventDataSource,
+    workspaces: WorkspaceDataSource? = null,
+    workSessions: WorkSessionDataSource? = null,
+    ownerUserId: String = LOCAL_ACTOR_ID,
+    transaction: LocalTransaction = DirectTransaction,
+    val localRevision: LocalDataRevision = LocalDataRevisionTracker(),
 ) {
-    val taskRepository: TaskRepository = DefaultTaskRepository(source)
+    constructor(
+        sources: LocalDataSources,
+        ownerUserId: String = LOCAL_ACTOR_ID,
+        localRevision: LocalDataRevision = LocalDataRevisionTracker(),
+    ) : this(
+        source = sources.tasks,
+        fixedEventSource = sources.fixedEvents,
+        workspaces = sources.workspaces,
+        workSessions = sources.workSessions,
+        ownerUserId = ownerUserId,
+        transaction = sources.transaction,
+        localRevision = localRevision,
+    )
+
+    val taskRepository: TaskRepository = DefaultTaskRepository(
+        source = source,
+        workspaces = workspaces,
+        workSessions = workSessions,
+        ownerUserId = ownerUserId,
+        transaction = transaction,
+        revisionTracker = localRevision,
+    )
     val taskUseCases = TaskUseCases(taskRepository)
 
     val fixedEventRepository: FixedEventRepository = DefaultFixedEventRepository(fixedEventSource)

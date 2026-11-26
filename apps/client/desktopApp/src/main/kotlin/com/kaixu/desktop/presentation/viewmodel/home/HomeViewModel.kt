@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kaixu.data.datasource.WorkspaceDataSource
 import com.kaixu.domain.model.scheduling.FixedEventDraft
-import com.kaixu.domain.model.tasks.Task
+import com.kaixu.domain.model.tasks.TaskDeadline
+import com.kaixu.domain.model.tasks.TaskDraft
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.usecase.scheduling.AgendaSnapshot
@@ -100,19 +101,18 @@ class HomeViewModel(
                 HomeQuickCreateKind.TASK -> {
                     val useCases = taskUseCases
                         ?: return HomeQuickCreateOutcome.Failed("当前环境未接入本地任务存储。")
-                    if (request.workspaceId != null) {
-                        val validSpace = workspaces?.findWorkspaceById(request.workspaceId)
-                        require(validSpace != null && validSpace.ownerUserId == ownerUserId && validSpace.status == WorkspaceStatus.ACTIVE) {
-                            "所选工作区不存在或已归档。"
-                        }
+                    val deadline = when {
+                        request.taskDeadlineDate != null && request.taskDeadlineAt != null ->
+                            throw IllegalArgumentException("日期截止与精确截止不能同时填写")
+                        request.taskDeadlineDate != null -> TaskDeadline.DateOnly(request.taskDeadlineDate)
+                        request.taskDeadlineAt != null -> TaskDeadline.ExactTime(request.taskDeadlineAt)
+                        else -> TaskDeadline.None
                     }
-                    val saved = useCases.create(
-                        Task(
+                    val saved = useCases.createFromDraft(
+                        TaskDraft(
                             title = trimmedTitle,
                             workspaceId = request.workspaceId,
-                            createdBy = ownerUserId,
-                            deadlineDate = request.taskDeadlineDate,
-                            deadlineAt = request.taskDeadlineAt,
+                            deadline = deadline,
                         ),
                     )
                     refreshAndAwait()

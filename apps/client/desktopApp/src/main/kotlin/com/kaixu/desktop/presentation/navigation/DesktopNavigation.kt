@@ -181,7 +181,7 @@ fun DesktopNavigation(
                     val target = requireNotNull(entry.arguments).read {
                         LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
                     }
-                    LocalRecordRoute(target, sources, onBack = navigator::back)
+                    LocalRecordRoute(target, sources, onBack = navigator::back, taskUseCases = graph.taskUseCases)
                 }
             }
         }

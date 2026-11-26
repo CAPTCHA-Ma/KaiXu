@@ -7,7 +7,7 @@
 
 适宜存放 AppGraph.kt、未来的公共依赖工厂和账号范围依赖配置。若有平台差异，优先通过构造参数接收公共接口，由各端或平台源集提供实现；不要在这里导入 Activity 或 Window。
 
-AndroidAppContainer 与 DesktopAppContainer 分别打开本端 Room 数据库，创建 LocalDataSources 并将 tasks 注入 AppGraph；宿主清理时关闭数据库。没有默认内存实现或模拟失败开关。远程同步尚未实现。
+AndroidAppContainer 与 DesktopAppContainer 分别打开本端 Room 数据库，创建 LocalDataSources 并直接构造 `AppGraph(localDataSources)`；图内为任务模块一并装配 `tasks`、`fixedEvents`、`workspaces`、`workSessions`、`LocalTransaction`（`sources.transaction`）与共享修订信号 `LocalDataRevision`；宿主清理时关闭数据库。没有默认内存实现或模拟失败开关。远程同步尚未实现。
 
 同一个宿主容器持有一份 AppGraph，图中同一个仓储供页面使用。AndroidAppContainer、DesktopAppContainer 分别创建各自实例，两端不会共享同一内存对象。
 

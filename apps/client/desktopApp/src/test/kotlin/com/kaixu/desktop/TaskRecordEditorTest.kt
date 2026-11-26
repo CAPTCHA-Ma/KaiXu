@@ -1,17 +1,24 @@
 package com.kaixu.desktop
 
+import com.kaixu.app.di.AppGraph
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.data.datasource.local.entity.newLocalId
 import com.kaixu.desktop.presentation.ui.records.saveLocalTaskRecordEdit
+import com.kaixu.desktop.presentation.viewmodel.home.HomeQuickCreateKind
+import com.kaixu.desktop.presentation.viewmodel.home.HomeQuickCreateOutcome
+import com.kaixu.desktop.presentation.viewmodel.home.HomeQuickCreateRequest
+import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskPriority
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.workspaces.WorkspaceKind
+import com.kaixu.domain.usecase.scheduling.AgendaUseCase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.nio.file.Files
@@ -104,6 +111,68 @@ class TaskRecordEditorTest {
         rejected { saveLocalTaskRecordEdit(original, "字".repeat(121), "不应保存", TaskStatus.IN_PROGRESS, sources) }
         assertEquals(original, sources.tasks.findTaskById(original.id))
         assertEquals(0L, db.taskDao().findById(original.id)!!.localRevision)
+    }
+
+    @Test
+    fun appGraphSharesRevisionAndEnforcesWorkspaceRulesAcrossQuickCreateAndRecordEdit() = runBlocking {
+        val graph = AppGraph(sources)
+        val active = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "软件分析")
+        val archived = sources.workspaces.createWorkspace(WorkspaceKind.PROJECT, "归档项目").also {
+            sources.workspaces.archiveWorkspace(it.id)
+        }
+        val homeViewModel = HomeViewModel(
+            agenda = AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
+            ownerUserId = LOCAL_ACTOR_ID,
+            workspaces = sources.workspaces,
+            taskUseCases = graph.taskUseCases,
+        )
+        val initialRevision = graph.localRevision.version.value
+
+        val rejectedArchived = homeViewModel.createQuickItem(
+            HomeQuickCreateRequest(
+                kind = HomeQuickCreateKind.TASK,
+                title = "不应写入的任务",
+                workspaceId = archived.id,
+            ),
+        )
+        assertTrue(rejectedArchived is HomeQuickCreateOutcome.Failed)
+        assertEquals(initialRevision, graph.localRevision.version.value)
+        assertTrue(sources.tasks.listTasks().isEmpty())
+
+        val outcome = homeViewModel.createQuickItem(
+            HomeQuickCreateRequest(
+                kind = HomeQuickCreateKind.TASK,
+                title = "  新阶段验证任务  ",
+                taskDeadlineDate = "2026-12-01",
+                workspaceId = active.id,
+            ),
+        )
+        assertTrue(outcome is HomeQuickCreateOutcome.Saved)
+        val taskId = (outcome as HomeQuickCreateOutcome.Saved).focusKey!!.removePrefix("task:")
+        assertEquals(initialRevision + 1, graph.localRevision.version.value)
+        val created = requireNotNull(graph.taskUseCases.observe().value.singleOrNull { it.id == taskId })
+        assertEquals("新阶段验证任务", created.title)
+        assertEquals(active.id, created.workspaceId)
+        assertEquals("2026-12-01", created.deadlineDate)
+
+        saveLocalTaskRecordEdit(
+            original = created,
+            draftTitle = "更新后的阶段任务",
+            draftDescription = "补充验证说明",
+            draftStatus = TaskStatus.IN_PROGRESS,
+            sources = sources,
+            taskUseCases = graph.taskUseCases,
+        )
+        assertEquals(initialRevision + 2, graph.localRevision.version.value)
+        val observed = requireNotNull(graph.taskUseCases.observe().value.singleOrNull { it.id == taskId })
+        assertEquals("更新后的阶段任务", observed.title)
+        assertEquals("补充验证说明", observed.description)
+        assertEquals(TaskStatus.IN_PROGRESS, observed.status)
+
+        val detail = requireNotNull(graph.taskUseCases.getDetail(taskId))
+        assertTrue(detail.canEdit)
+        assertEquals(active.id, detail.workspace?.id)
+        assertEquals("更新后的阶段任务", detail.task.title)
     }
 
     private suspend fun rejected(action: suspend () -> Unit) {
