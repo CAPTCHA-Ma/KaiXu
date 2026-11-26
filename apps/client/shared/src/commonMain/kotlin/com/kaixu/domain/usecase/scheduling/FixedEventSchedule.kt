@@ -1,5 +1,6 @@
 package com.kaixu.domain.usecase.scheduling
 
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
 import com.kaixu.data.datasource.WorkspaceDataSource
@@ -48,13 +49,15 @@ class FixedEventSchedule(
     private val ownerUserId: String,
     private val transaction: LocalTransaction,
 ) {
+    private val shanghai = LocalZone.of("Asia/Shanghai")
+
     suspend fun create(
         draft: FixedEventDraft,
         confirmed: FixedEventConfirmation? = null,
     ): FixedEventSaveResult = transaction.run {
         val normalized = normalize(draft)
         requireWorkspace(normalized.workspaceId)
-        val ranges = Recurrence.proposedRanges(normalized)
+        val ranges = Recurrence.proposedRanges(normalized, shanghai)
         val conflicts = findConflicts(ranges, excludeEventIds = emptySet(), excludeSeriesId = null)
         val key = confirmationKey(normalized, originalDate = null, scope = null)
         if (conflicts.isNotEmpty() && confirmed?.key != key) {
@@ -93,7 +96,7 @@ class FixedEventSchedule(
         require(current.createdBy == ownerUserId) { "只能编辑本人的事件。" }
         val normalized = normalize(draft)
         requireWorkspace(normalized.workspaceId)
-        val ranges = Recurrence.proposedRanges(normalized)
+        val ranges = Recurrence.proposedRanges(normalized, shanghai)
         val excludeIds = mutableSetOf(current.id)
         val existingOverride = if (originalDate != null) {
             events.listOverridesIncludingDeleted()
@@ -207,7 +210,7 @@ class FixedEventSchedule(
         require(windowEnd > windowStart) { "结束时间必须晚于开始时间。" }
         val all = events.listEvents().filter { it.createdBy == ownerUserId }
         val overrides = events.listOverridesIncludingDeleted()
-        return Recurrence.expand(all, overrides, windowStart, windowEnd)
+        return Recurrence.expand(all, overrides, windowStart, windowEnd, shanghai)
     }
 
     private suspend fun cancelOccurrence(current: FixedEvent, originalDate: String): Boolean {
@@ -244,7 +247,7 @@ class FixedEventSchedule(
         val maxEnd = ranges.maxOf { it.second }
         val all = events.listEvents()
         val overrides = events.listOverridesIncludingDeleted()
-        val occurrences = Recurrence.expand(all, overrides, minStart, maxEnd)
+        val occurrences = Recurrence.expand(all, overrides, minStart, maxEnd, shanghai)
         val eventConflicts = occurrences
             .filter { it.createdBy == ownerUserId }
             .filter { occurrence ->
@@ -283,7 +286,7 @@ class FixedEventSchedule(
             description = draft.description?.trim()?.ifBlank { null },
             repeatWeekdays = draft.repeatWeekdays?.sorted()?.toSet(),
         )
-        FixedEventForm.errorOrNull(normalized)?.let { throw IllegalArgumentException(it) }
+        FixedEventForm.errorOrNull(normalized, shanghai)?.let { throw IllegalArgumentException(it) }
         return normalized
     }
 
