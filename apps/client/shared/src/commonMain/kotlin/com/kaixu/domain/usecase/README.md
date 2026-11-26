@@ -7,8 +7,9 @@ UseCase 类似你熟悉的 Service 中“一段业务流程”：校验输入、
 
 客户端调用多个仓储不能形成服务端事务。例如“完成任务并取消未来时段”应由后端单次事务接口实现，UseCase 只发一个带用户选择的命令。
 
-任务操作统一放在 `tasks/TaskUseCases.kt`，包含创建、编辑、删除、查询、订阅和刷新。
-排期中的复杂操作仍采用独立用例类；将多个类放在同一个文件不等于将它们合并为一个类。
+任务操作统一放在 `tasks/TaskUseCases.kt`，包含创建、编辑、删除、完成/重开、查询、订阅和刷新。
+固定日程与日周日程窗口查询统一收口至 `scheduling/FixedEventUseCases.kt`（聚合详情读取、`THIS_OCCURRENCE` / `THIS_AND_FUTURE` 编辑删除、带任务真实标题的冲突检查及基于 `LocalZone` 与 `CalendarDayLayout` 的 `QueryCalendarWindowUseCase`），并与 `TaskUseCases` 在 `AppGraph` 中共享同一 `LocalDataRevision` 变更信号。
+排期中的计划时段与计时复杂操作仍放在 `WorkSessionCommands.kt` 与 `FocusCommands.kt`；将多个类放在同一个文件不等于将它们合并为一个类。
 简单读取也可以由 ViewModel 直接调仓储；UseCase 不是 MVVM 的强制层，不必为每个 getter 增加空壳。
 
 `scheduling/WorkSessionCommands.kt` 提供计划时段批量创建、编辑、个人状态变更、删除和日程聚合，

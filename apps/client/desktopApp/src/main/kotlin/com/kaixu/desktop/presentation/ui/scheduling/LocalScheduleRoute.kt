@@ -9,20 +9,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.desktop.presentation.ui.records.LocalRecordTarget
 import com.kaixu.desktop.presentation.ui.records.RecordKind
 import com.kaixu.desktop.presentation.ui.workspaces.localMoment
-import com.kaixu.domain.model.scheduling.ScheduleDeadline
-import com.kaixu.domain.model.scheduling.ScheduleEntry
-import com.kaixu.domain.model.scheduling.ScheduleEntryType
-import com.kaixu.domain.model.scheduling.ScheduleView
+import com.kaixu.domain.model.scheduling.CalendarBlockKind
+import com.kaixu.domain.model.scheduling.CalendarDayColumn
+import com.kaixu.domain.model.scheduling.CalendarDaySlice
+import com.kaixu.domain.model.scheduling.CalendarDeadlineItem
+import com.kaixu.domain.model.scheduling.CalendarQuery
+import com.kaixu.domain.model.scheduling.CalendarViewMode
+import com.kaixu.domain.model.scheduling.CalendarWindowSnapshot
+import com.kaixu.domain.model.scheduling.CalendarWorkspaceFilter
+import com.kaixu.domain.model.tasks.TaskDeadline
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.usecase.scheduling.ScheduleWorkspaceFilter
-import com.kaixu.domain.usecase.scheduling.ViewScheduleUseCase
-import java.time.DayOfWeek
+import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -31,9 +35,8 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 
 private val ScheduleZone = ZoneId.of("Asia/Shanghai")
+private val ScheduleLocalZone = LocalZone.of("Asia/Shanghai")
 private val DayLabelFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd E", Locale.CHINA)
-
-internal enum class ScheduleMode { DAY, WEEK }
 
 /** 桌面日程页：日/周视图、工作区筛选与固定事件的新建入口。 */
 @OptIn(ExperimentalLayoutApi::class)
@@ -41,19 +44,17 @@ internal enum class ScheduleMode { DAY, WEEK }
 internal fun LocalScheduleRoute(
     sources: LocalDataSources,
     onOpenRecord: (LocalRecordTarget) -> Unit,
+    fixedEventUseCases: FixedEventUseCases? = null,
 ) {
-    val schedule = remember(sources) {
-        ViewScheduleUseCase(
-            sources.fixedEvents, sources.workSessions, sources.tasks, sources.workspaces, LOCAL_ACTOR_ID, sources.transaction,
-        )
-    }
-    var mode by remember { mutableStateOf(ScheduleMode.DAY) }
+    val activeUseCases = fixedEventUseCases ?: remember(sources) { localFixedEventUseCases(sources) }
+    val revision by activeUseCases.revision.collectAsState()
+    var mode by remember { mutableStateOf(CalendarViewMode.DAY) }
     var selectedDate by remember { mutableStateOf(LocalDate.now(ScheduleZone)) }
-    var filter by remember { mutableStateOf<ScheduleWorkspaceFilter>(ScheduleWorkspaceFilter.All) }
+    var filter by remember { mutableStateOf<CalendarWorkspaceFilter>(CalendarWorkspaceFilter.All) }
     var reload by remember { mutableIntStateOf(0) }
     var creating by remember { mutableStateOf(false) }
 
-    val workspaces by produceState<List<Workspace>>(emptyList(), sources, reload) {
+    val workspaces by produceState<List<Workspace>>(emptyList(), sources, reload, revision) {
         value = try {
             sources.workspaces.listWorkspaces(null)
                 .filter { it.ownerUserId == LOCAL_ACTOR_ID }
@@ -62,11 +63,21 @@ internal fun LocalScheduleRoute(
             emptyList()
         }
     }
-    val window = remember(mode, selectedDate) { windowFor(mode, selectedDate) }
-    val state by produceState<Result<ScheduleView>?>(null, window, filter, reload) {
+    val state by produceState<Result<CalendarWindowSnapshot>?>(
+        null, mode, selectedDate, filter, reload, revision, activeUseCases,
+    ) {
         value = null
         value = try {
-            Result.success(schedule(window.first, window.second, filter))
+            Result.success(
+                activeUseCases.queryCalendar(
+                    query = CalendarQuery(
+                        mode = mode,
+                        anchorDate = selectedDate.toString(),
+                        workspaceFilter = filter,
+                    ),
+                    zone = ScheduleLocalZone,
+                ),
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -74,11 +85,11 @@ internal fun LocalScheduleRoute(
         }
     }
 
-    val openEntry: (ScheduleEntry) -> Unit = { entry ->
-        val kind = if (entry.type == ScheduleEntryType.WORK_SESSION) RecordKind.SESSION else RecordKind.EVENT
-        onOpenRecord(LocalRecordTarget(kind, entry.recordId))
+    val openSlice: (CalendarDaySlice) -> Unit = { slice ->
+        val kind = if (slice.block.kind == CalendarBlockKind.WORK_SESSION) RecordKind.SESSION else RecordKind.EVENT
+        onOpenRecord(LocalRecordTarget(kind, slice.block.recordId))
     }
-    val openDeadline: (ScheduleDeadline) -> Unit = { deadline ->
+    val openDeadline: (CalendarDeadlineItem) -> Unit = { deadline ->
         onOpenRecord(LocalRecordTarget(RecordKind.TASK, deadline.taskId))
     }
 
@@ -92,27 +103,27 @@ internal fun LocalScheduleRoute(
         Text("从本地库读取，无需登录或联网。日视图、周视图与工作区筛选共用当前日期范围。", style = MaterialTheme.typography.bodySmall)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
-                selected = mode == ScheduleMode.DAY,
-                onClick = { mode = ScheduleMode.DAY },
+                selected = mode == CalendarViewMode.DAY,
+                onClick = { mode = CalendarViewMode.DAY },
                 label = { Text("日视图") },
                 modifier = Modifier.testTag("schedule-mode-day"),
             )
             FilterChip(
-                selected = mode == ScheduleMode.WEEK,
-                onClick = { mode = ScheduleMode.WEEK },
+                selected = mode == CalendarViewMode.WEEK,
+                onClick = { mode = CalendarViewMode.WEEK },
                 label = { Text("周视图") },
                 modifier = Modifier.testTag("schedule-mode-week"),
             )
             Spacer(Modifier.width(8.dp))
             TextButton(onClick = { selectedDate = shiftDate(mode, selectedDate, -1) }) {
-                Text(if (mode == ScheduleMode.WEEK) "上一周" else "前一天")
+                Text(if (mode == CalendarViewMode.WEEK) "上一周" else "前一天")
             }
             TextButton(onClick = { selectedDate = LocalDate.now(ScheduleZone) }) { Text("今天") }
             TextButton(onClick = { selectedDate = shiftDate(mode, selectedDate, 1) }) {
-                Text(if (mode == ScheduleMode.WEEK) "下一周" else "后一天")
+                Text(if (mode == CalendarViewMode.WEEK) "下一周" else "后一天")
             }
             Text(
-                text = if (mode == ScheduleMode.WEEK) weekLabel(selectedDate) else DayLabelFormat.format(selectedDate),
+                text = if (mode == CalendarViewMode.WEEK) weekLabel(selectedDate) else DayLabelFormat.format(selectedDate),
                 style = MaterialTheme.typography.titleMedium,
             )
         }
@@ -123,6 +134,7 @@ internal fun LocalScheduleRoute(
         )
 
         val snapshot = state
+        val expectedAnchorDate = selectedDate.toString()
         when {
             snapshot == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
             snapshot.isFailure -> {
@@ -131,10 +143,13 @@ internal fun LocalScheduleRoute(
             }
             else -> {
                 val view = snapshot.getOrThrow()
-                if (mode == ScheduleMode.DAY) {
-                    DaySchedule(selectedDate, view, openEntry, openDeadline)
-                } else {
-                    WeekSchedule(selectedDate.with(DayOfWeek.MONDAY), view, openEntry, openDeadline)
+                val matchesQuery = view.spec.mode == mode &&
+                    view.spec.anchorDate == expectedAnchorDate &&
+                    view.workspaceFilter == filter
+                when {
+                    !matchesQuery -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                    view.spec.mode == CalendarViewMode.DAY -> DaySchedule(view.days.single(), openSlice, openDeadline)
+                    else -> WeekSchedule(view, openSlice, openDeadline)
                 }
             }
         }
@@ -146,6 +161,7 @@ internal fun LocalScheduleRoute(
             target = null,
             onDismiss = { creating = false },
             onSaved = { creating = false; reload++ },
+            fixedEventUseCases = activeUseCases,
         )
     }
 }
@@ -154,24 +170,24 @@ internal fun LocalScheduleRoute(
 @Composable
 private fun WorkspaceFilterRow(
     workspaces: List<Workspace>,
-    selected: ScheduleWorkspaceFilter,
-    onSelected: (ScheduleWorkspaceFilter) -> Unit,
+    selected: CalendarWorkspaceFilter,
+    onSelected: (CalendarWorkspaceFilter) -> Unit,
 ) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         FilterChip(
-            selected = selected == ScheduleWorkspaceFilter.All,
-            onClick = { onSelected(ScheduleWorkspaceFilter.All) },
+            selected = selected == CalendarWorkspaceFilter.All,
+            onClick = { onSelected(CalendarWorkspaceFilter.All) },
             label = { Text("全部工作区") },
             modifier = Modifier.testTag("schedule-filter-all"),
         )
         FilterChip(
-            selected = selected == ScheduleWorkspaceFilter.Standalone,
-            onClick = { onSelected(ScheduleWorkspaceFilter.Standalone) },
+            selected = selected == CalendarWorkspaceFilter.Standalone,
+            onClick = { onSelected(CalendarWorkspaceFilter.Standalone) },
             label = { Text("独立安排") },
             modifier = Modifier.testTag("schedule-filter-standalone"),
         )
         for (workspace in workspaces) {
-            val value = ScheduleWorkspaceFilter.Workspace(workspace.id)
+            val value = CalendarWorkspaceFilter.Workspace(workspace.id)
             FilterChip(
                 selected = selected == value,
                 onClick = { onSelected(value) },
@@ -186,56 +202,48 @@ private fun WorkspaceFilterRow(
 
 @Composable
 private fun DaySchedule(
-    date: LocalDate,
-    view: ScheduleView,
-    onOpenEntry: (ScheduleEntry) -> Unit,
-    onOpenDeadline: (ScheduleDeadline) -> Unit,
+    day: CalendarDayColumn,
+    onOpenSlice: (CalendarDaySlice) -> Unit,
+    onOpenDeadline: (CalendarDeadlineItem) -> Unit,
 ) {
-    val entries = view.entries.filter { localDateOf(it.startsAt) == date }
-    val deadlines = view.deadlines.filter { deadlineDate(it) == date }
-    if (entries.isEmpty() && deadlines.isEmpty()) {
+    if (day.slices.isEmpty() && day.deadlines.isEmpty()) {
         Text("这一天没有安排。", modifier = Modifier.testTag("schedule-empty"))
         return
     }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (entries.isNotEmpty()) {
+        if (day.slices.isNotEmpty()) {
             item(key = "section-entries") { SectionLabel("执行时间") }
-            items(entries, key = { "entry-${it.key}" }) { entry -> EntryRow(entry, onOpenEntry) }
+            items(day.slices, key = { "entry-${it.sliceKey}" }) { slice -> SliceRow(slice, onOpenSlice) }
         }
-        if (deadlines.isNotEmpty()) {
+        if (day.deadlines.isNotEmpty()) {
             item(key = "section-deadlines") { SectionLabel("截止要求（不进入执行时间）") }
-            items(deadlines, key = { "deadline-${it.key}" }) { deadline -> DeadlineRow(deadline, onOpenDeadline) }
+            items(day.deadlines, key = { "deadline-${it.key}" }) { deadline -> DeadlineRow(deadline, onOpenDeadline) }
         }
     }
 }
 
 @Composable
 private fun WeekSchedule(
-    startDate: LocalDate,
-    view: ScheduleView,
-    onOpenEntry: (ScheduleEntry) -> Unit,
-    onOpenDeadline: (ScheduleDeadline) -> Unit,
+    snapshot: CalendarWindowSnapshot,
+    onOpenSlice: (CalendarDaySlice) -> Unit,
+    onOpenDeadline: (CalendarDeadlineItem) -> Unit,
 ) {
-    val entriesByDate = view.entries.groupBy { localDateOf(it.startsAt) }
-    val deadlinesByDate = view.deadlines.groupBy { deadlineDate(it) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        for (offset in 0 until 7) {
-            val date = startDate.plusDays(offset.toLong())
-            val entries = entriesByDate[date].orEmpty()
-            val deadlines = deadlinesByDate[date].orEmpty()
-            item(key = "day-$date") {
+        for (day in snapshot.days) {
+            val date = LocalDate.parse(day.date)
+            item(key = "day-${day.date}") {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.testTag("schedule-day-$date"),
+                    modifier = Modifier.testTag("schedule-day-${day.date}"),
                 ) {
                     Text(DayLabelFormat.format(date), style = MaterialTheme.typography.titleMedium)
-                    if (entries.isEmpty() && deadlines.isEmpty()) {
+                    if (day.slices.isEmpty() && day.deadlines.isEmpty()) {
                         Text("无安排", style = MaterialTheme.typography.bodySmall)
                     }
-                    entries.forEach { entry -> EntryRow(entry, onOpenEntry) }
-                    if (deadlines.isNotEmpty()) {
+                    day.slices.forEach { slice -> SliceRow(slice, onOpenSlice) }
+                    if (day.deadlines.isNotEmpty()) {
                         SectionLabel("截止要求")
-                        deadlines.forEach { deadline -> DeadlineRow(deadline, onOpenDeadline) }
+                        day.deadlines.forEach { deadline -> DeadlineRow(deadline, onOpenDeadline) }
                     }
                 }
             }
@@ -249,24 +257,29 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun EntryRow(entry: ScheduleEntry, onOpen: (ScheduleEntry) -> Unit) {
+private fun SliceRow(slice: CalendarDaySlice, onOpen: (CalendarDaySlice) -> Unit) {
+    val block = slice.block
+    val crossDaySuffix = buildString {
+        if (slice.continuesFromPreviousDay) append("（接前日）")
+        if (slice.continuesToNextDay) append("（续次日）")
+    }
     OutlinedButton(
-        onClick = { onOpen(entry) },
-        modifier = Modifier.fillMaxWidth().testTag("schedule-entry-${entry.key}"),
+        onClick = { onOpen(slice) },
+        modifier = Modifier.fillMaxWidth().testTag("schedule-entry-${block.key}"),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(entry.title)
+            Text(block.title)
             Text(
-                "${clockOf(entry.startsAt)} — ${clockOf(entry.endsAt)}",
+                "${clockOf(slice.sliceStartMillis)} — ${clockOf(slice.sliceEndMillis)}$crossDaySuffix",
                 style = MaterialTheme.typography.bodySmall,
             )
-            Text(entryMarkers(entry), style = MaterialTheme.typography.labelSmall)
+            Text(sliceMarkers(slice), style = MaterialTheme.typography.labelSmall)
         }
     }
 }
 
 @Composable
-private fun DeadlineRow(deadline: ScheduleDeadline, onOpen: (ScheduleDeadline) -> Unit) {
+private fun DeadlineRow(deadline: CalendarDeadlineItem, onOpen: (CalendarDeadlineItem) -> Unit) {
     OutlinedButton(
         onClick = { onOpen(deadline) },
         modifier = Modifier.fillMaxWidth().testTag("schedule-deadline-${deadline.taskId}"),
@@ -283,49 +296,34 @@ private fun DeadlineRow(deadline: ScheduleDeadline, onOpen: (ScheduleDeadline) -
     }
 }
 
-private fun entryMarkers(entry: ScheduleEntry): String = buildList {
+private fun sliceMarkers(slice: CalendarDaySlice): String = buildList {
+    val block = slice.block
     add(
-        when (entry.type) {
-            ScheduleEntryType.FIXED_EVENT -> "固定事件"
-            ScheduleEntryType.SHARED_EVENT -> "共享事件"
-            ScheduleEntryType.WORK_SESSION -> "我的工作时段（仅我）"
+        when (block.kind) {
+            CalendarBlockKind.FIXED_EVENT -> "固定事件"
+            CalendarBlockKind.SHARED_EVENT -> "共享事件"
+            CalendarBlockKind.WORK_SESSION -> "我的工作时段（仅我）"
         },
     )
-    if (entry.isRecurring) add("重复")
-    entry.workspaceName?.let(::add)
-    if (entry.workspaceArchived) add("已归档")
+    if (block.isRecurring) add("重复")
+    block.workspaceName?.let(::add)
+    if (block.workspaceArchived) add("已归档")
 }.joinToString(" · ")
 
-private fun deadlineLabel(deadline: ScheduleDeadline): String {
-    val instant = deadline.at
-    return when {
-        deadline.date != null -> "${deadline.date}（仅日期）"
-        instant != null -> "${localMoment(instant)}（具体时间）"
-        else -> "无截止"
-    }
+private fun deadlineLabel(deadline: CalendarDeadlineItem): String = when (val value = deadline.deadline) {
+    is TaskDeadline.DateOnly -> "${value.date}（仅日期）"
+    is TaskDeadline.ExactTime -> "${localMoment(value.epochMillis)}（具体时间）"
+    TaskDeadline.None -> "无截止"
 }
 
-private fun deadlineDate(deadline: ScheduleDeadline): LocalDate? =
-    deadline.date?.let { LocalDate.parse(it) } ?: deadline.at?.let(::localDateOf)
-
-private fun windowFor(mode: ScheduleMode, date: LocalDate): Pair<Long, Long> {
-    val start = if (mode == ScheduleMode.WEEK) date.with(DayOfWeek.MONDAY) else date
-    val end = if (mode == ScheduleMode.WEEK) start.plusDays(7) else start.plusDays(1)
-    return start.atStartOfDay(ScheduleZone).toInstant().toEpochMilli() to
-        end.atStartOfDay(ScheduleZone).toInstant().toEpochMilli()
-}
-
-private fun shiftDate(mode: ScheduleMode, date: LocalDate, direction: Long): LocalDate =
-    if (mode == ScheduleMode.WEEK) date.plusWeeks(direction) else date.plusDays(direction)
+private fun shiftDate(mode: CalendarViewMode, date: LocalDate, direction: Long): LocalDate =
+    if (mode == CalendarViewMode.WEEK) date.plusWeeks(direction) else date.plusDays(direction)
 
 private fun weekLabel(date: LocalDate): String {
-    val monday = date.with(DayOfWeek.MONDAY)
+    val monday = date.with(java.time.DayOfWeek.MONDAY)
     val sunday = monday.plusDays(6)
     return "$monday ~ $sunday"
 }
-
-private fun localDateOf(millis: Long): LocalDate =
-    Instant.ofEpochMilli(millis).atZone(ScheduleZone).toLocalDate()
 
 private fun clockOf(millis: Long): String =
     formatEventEditTime(millis).substring(11)

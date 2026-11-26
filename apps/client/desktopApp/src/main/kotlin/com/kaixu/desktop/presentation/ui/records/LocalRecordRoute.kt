@@ -8,17 +8,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.scheduling.FixedEvent
+import com.kaixu.domain.model.scheduling.FixedEventTarget
 import com.kaixu.domain.model.scheduling.WorkSessionStatus
-import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
 import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
+import com.kaixu.desktop.presentation.ui.scheduling.localFixedEventUseCases
 import com.kaixu.desktop.presentation.ui.workspaces.localMoment
+import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
 import com.kaixu.domain.usecase.tasks.TaskUseCases
 import kotlinx.coroutines.CancellationException
 
@@ -32,10 +35,6 @@ private data class RecordDetails(
 )
 private data class RecordState(val loading: Boolean = true, val details: RecordDetails? = null, val error: String? = null)
 
-private fun canEdit(createdBy: String, workspaceId: String?, workspace: Workspace?): Boolean =
-    createdBy == LOCAL_ACTOR_ID && (workspaceId == null ||
-        (workspace?.ownerUserId == LOCAL_ACTOR_ID && workspace.status == WorkspaceStatus.ACTIVE))
-
 /** 全局和工作区入口共用同一原记录详情和编辑入口。 */
 @Composable
 fun LocalRecordRoute(
@@ -43,11 +42,13 @@ fun LocalRecordRoute(
     sources: LocalDataSources,
     onBack: () -> Unit,
     taskUseCases: TaskUseCases? = null,
+    fixedEventUseCases: FixedEventUseCases? = null,
 ) {
     val activeTaskUseCases = taskUseCases ?: remember(sources) { localTaskUseCases(sources) }
+    val activeFixedEventUseCases = fixedEventUseCases ?: remember(sources) { localFixedEventUseCases(sources) }
     var retry by remember(target) { mutableIntStateOf(0) }
     var editing by remember(target) { mutableStateOf(false) }
-    val state by produceState(RecordState(), target, retry, activeTaskUseCases) {
+    val state by produceState(RecordState(), target, retry, activeTaskUseCases, activeFixedEventUseCases) {
         value = RecordState()
         try {
             val details = when (target.kind) {
@@ -65,23 +66,27 @@ fun LocalRecordRoute(
                         "所属工作区" to (workspace?.name ?: if (task.workspaceId == null) "独立任务" else "关联工作区暂不可用"),
                     ), editableTask = task.takeIf { detail.canEdit })
                 }
-                RecordKind.EVENT -> sources.fixedEvents.findEventById(target.id)?.let { event ->
-                    val workspace = event.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
-                    val shared = event.createdBy != LOCAL_ACTOR_ID
+                RecordKind.EVENT -> activeFixedEventUseCases.getDetail(
+                    FixedEventTarget.SingleOrSeries(target.id),
+                    zone = LocalZone.of("Asia/Shanghai"),
+                )?.let { detail ->
+                    val event = detail.record
+                    val workspace = detail.workspace
+                    val repeatDays = detail.series?.repeatWeekdays ?: event.repeatWeekdays
+                    val repeatUntil = detail.series?.repeatUntil ?: event.repeatUntil
                     RecordDetails(event.title, listOfNotNull(
-                        "记录类型" to if (shared) "共享事件（只读）" else "固定事件",
-                        "执行时间" to "${localMoment(event.startsAt)} — ${localMoment(event.endsAt)}",
+                        "记录类型" to if (detail.isSharedReadOnly) "共享事件（只读）" else "固定事件",
+                        "执行时间" to "${localMoment(detail.occurrenceStart)} — ${localMoment(detail.occurrenceEnd)}",
                         event.description?.let { "说明" to it },
                         "所属工作区" to (workspace?.name ?: if (event.workspaceId == null) "独立事件" else "关联工作区暂不可用"),
-                        event.repeatWeekdays?.let { days ->
+                        repeatDays?.let { days ->
                             "重复" to days.sorted().joinToString("、") { "周" + "一二三四五六日"[it - 1] } +
-                                "，至 ${event.repeatUntil}"
+                                "，至 $repeatUntil"
                         },
                         event.reminderOffsetMinutes?.let { "站内提醒" to "提前 $it 分钟" },
-                        (workspace?.status == WorkspaceStatus.ARCHIVED).takeIf { it }?.let { "工作区状态" to "已归档，事件只读" },
+                        detail.workspaceArchived.takeIf { it }?.let { "工作区状态" to "已归档，事件只读" },
                     ), editableEvent = event.takeIf {
-                        canEdit(it.createdBy, it.workspaceId, workspace) &&
-                            it.seriesId == null && it.originalDate == null && !it.isOverride
+                        detail.canEdit && !detail.supportsScopeSelection && !event.isOccurrenceOverride
                     })
                 }
                 RecordKind.SESSION -> sources.workSessions.findWorkSessionById(target.id)
@@ -153,6 +158,7 @@ fun LocalRecordRoute(
                 onDismiss = onDismiss,
                 onSaved = onSaved,
                 onDeleted = onSaved,
+                fixedEventUseCases = activeFixedEventUseCases,
             )
         }
     }

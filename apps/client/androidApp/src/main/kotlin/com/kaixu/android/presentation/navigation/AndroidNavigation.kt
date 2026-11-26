@@ -47,7 +47,11 @@ fun AndroidNavigation(
         }
         if (sources != null) {
             composable(AndroidDestination.SCHEDULE) {
-                ScheduleDayRoute(sources, onBack = { navController.popBackStack() })
+                ScheduleDayRoute(
+                    sources = sources,
+                    onBack = { navController.popBackStack() },
+                    fixedEventUseCases = graph.fixedEventUseCases,
+                )
             }
         }
         composable(AndroidDestination.SETTINGS) {

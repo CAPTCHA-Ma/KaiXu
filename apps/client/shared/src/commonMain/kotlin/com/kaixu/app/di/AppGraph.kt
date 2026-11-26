@@ -17,6 +17,7 @@ import com.kaixu.domain.repository.TaskRepository
 import com.kaixu.domain.usecase.scheduling.CreateFixedEventUseCase
 import com.kaixu.domain.usecase.scheduling.DeleteFixedEventUseCase
 import com.kaixu.domain.usecase.scheduling.FindFixedEventByIdUseCase
+import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
 import com.kaixu.domain.usecase.scheduling.ListFixedEventsByWorkspaceUseCase
 import com.kaixu.domain.usecase.scheduling.ListFixedEventsInRangeUseCase
 import com.kaixu.domain.usecase.scheduling.ObserveFixedEventsUseCase
@@ -58,7 +59,16 @@ class AppGraph(
     )
     val taskUseCases = TaskUseCases(taskRepository)
 
-    val fixedEventRepository: FixedEventRepository = DefaultFixedEventRepository(fixedEventSource)
+    val fixedEventRepository: FixedEventRepository = DefaultFixedEventRepository(
+        source = fixedEventSource,
+        workspaces = workspaces,
+        workSessions = workSessions,
+        tasks = source,
+        ownerUserId = ownerUserId,
+        transaction = transaction,
+        revisionTracker = localRevision,
+    )
+    val fixedEventUseCases = FixedEventUseCases(fixedEventRepository)
     val observeFixedEvents = ObserveFixedEventsUseCase(fixedEventRepository)
     val refreshFixedEvents = RefreshFixedEventsUseCase(fixedEventRepository)
     val createFixedEvent = CreateFixedEventUseCase(fixedEventRepository)

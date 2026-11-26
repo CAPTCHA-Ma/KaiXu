@@ -19,7 +19,6 @@ import com.kaixu.desktop.presentation.ui.home.HomeScreen
 import com.kaixu.desktop.presentation.ui.home.HomeRoute
 import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
 import com.kaixu.domain.usecase.scheduling.AgendaUseCase
-import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
 import com.kaixu.desktop.presentation.ui.tasks.TaskEditorRoute
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
@@ -104,13 +103,7 @@ fun DesktopNavigation(
                             ownerUserId = LOCAL_ACTOR_ID,
                             workspaces = sources.workspaces,
                             taskUseCases = graph.taskUseCases,
-                            fixedEventSchedule = FixedEventSchedule(
-                                sources.fixedEvents,
-                                sources.workSessions,
-                                sources.workspaces,
-                                LOCAL_ACTOR_ID,
-                                sources.transaction,
-                            ),
+                            fixedEventUseCases = graph.fixedEventUseCases,
                         )
                     }
                     HomeRoute(home, onOpenRecord = openRecord,
@@ -171,7 +164,11 @@ fun DesktopNavigation(
             }
             if (sources != null) {
                 composable(DesktopDestination.SCHEDULE) {
-                    LocalScheduleRoute(sources, onOpenRecord = openRecord)
+                    LocalScheduleRoute(
+                        sources = sources,
+                        onOpenRecord = openRecord,
+                        fixedEventUseCases = graph.fixedEventUseCases,
+                    )
                 }
                 composable(DesktopDestination.RESOURCE) { entry ->
                     val id = requireNotNull(entry.arguments).read { getString("id") }
@@ -181,7 +178,13 @@ fun DesktopNavigation(
                     val target = requireNotNull(entry.arguments).read {
                         LocalRecordTarget(RecordKind.valueOf(getString("kind")), getString("id"))
                     }
-                    LocalRecordRoute(target, sources, onBack = navigator::back, taskUseCases = graph.taskUseCases)
+                    LocalRecordRoute(
+                        target = target,
+                        sources = sources,
+                        onBack = navigator::back,
+                        taskUseCases = graph.taskUseCases,
+                        fixedEventUseCases = graph.fixedEventUseCases,
+                    )
                 }
             }
         }
