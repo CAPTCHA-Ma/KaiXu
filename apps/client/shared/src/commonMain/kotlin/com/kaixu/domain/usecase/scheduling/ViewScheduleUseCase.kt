@@ -1,5 +1,6 @@
 package com.kaixu.domain.usecase.scheduling
 
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
@@ -57,6 +58,7 @@ class ViewScheduleUseCase(
             events.listOverridesIncludingDeleted(),
             windowStart,
             windowEnd,
+            LocalZone.of("Asia/Shanghai"),
         ).map { occurrence ->
             val workspace = occurrence.workspaceId?.let(workspaceById::get)
             ScheduleEntry(

@@ -2,6 +2,7 @@ package com.kaixu.desktop.presentation.viewmodel.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.WorkspaceDataSource
 import com.kaixu.domain.model.scheduling.FixedEventDraft
 import com.kaixu.domain.model.tasks.TaskDeadline
@@ -14,6 +15,7 @@ import com.kaixu.domain.usecase.scheduling.AgendaWindow
 import com.kaixu.domain.usecase.scheduling.FixedEventConfirmation
 import com.kaixu.domain.usecase.scheduling.FixedEventSaveResult
 import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
+import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
 import com.kaixu.domain.usecase.tasks.TaskUseCases
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import kotlinx.coroutines.CancellationException
@@ -57,6 +59,7 @@ class HomeViewModel(
     private val workspaces: WorkspaceDataSource? = null,
     private val taskUseCases: TaskUseCases? = null,
     private val fixedEventSchedule: FixedEventSchedule? = null,
+    private val fixedEventUseCases: FixedEventUseCases? = null,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HomeUiState(now = clock()))
@@ -119,18 +122,23 @@ class HomeViewModel(
                     HomeQuickCreateOutcome.Saved("任务已保存到本地", focusKey = "task:${saved.id}")
                 }
                 HomeQuickCreateKind.EVENT -> {
-                    val schedule = fixedEventSchedule
-                        ?: return HomeQuickCreateOutcome.Failed("当前环境未接入本地日程存储。")
-                    val (startsAt, endsAt) = resolveEventRange(request.eventStartsAt, request.eventEndsAt, clock())
-                    val result = schedule.create(
+                    val draft = resolveEventRange(request.eventStartsAt, request.eventEndsAt, clock()).let { (startsAt, endsAt) ->
                         FixedEventDraft(
                             title = trimmedTitle,
                             startsAt = startsAt,
                             endsAt = endsAt,
                             workspaceId = request.workspaceId,
-                        ),
-                        confirmed = confirmed,
-                    )
+                        )
+                    }
+                    val result = when {
+                        fixedEventUseCases != null -> fixedEventUseCases.create(
+                            draft = draft,
+                            confirmed = confirmed,
+                            zone = LocalZone.of("Asia/Shanghai"),
+                        )
+                        fixedEventSchedule != null -> fixedEventSchedule.create(draft, confirmed)
+                        else -> return HomeQuickCreateOutcome.Failed("当前环境未接入本地日程存储。")
+                    }
                     when (result) {
                         is FixedEventSaveResult.Saved -> {
                             refreshAndAwait()

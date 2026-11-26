@@ -8,16 +8,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
+import com.kaixu.data.repository.DefaultFixedEventRepository
 import com.kaixu.domain.model.scheduling.EditScope
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.FixedEventDraft
+import com.kaixu.domain.model.scheduling.FixedEventTarget
 import com.kaixu.domain.model.workspaces.Workspace
 import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.usecase.scheduling.FixedEventConfirmation
 import com.kaixu.domain.usecase.scheduling.FixedEventSaveResult
-import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
+import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
 import com.kaixu.domain.usecase.scheduling.ScheduleConflictKind
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import java.time.DateTimeException
@@ -30,7 +33,20 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private val EventTimeZone = ZoneId.of("Asia/Shanghai")
+private val EventLocalZone = LocalZone.of("Asia/Shanghai")
 private val EventTimeFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm").withResolverStyle(ResolverStyle.STRICT)
+
+internal fun localFixedEventUseCases(sources: LocalDataSources): FixedEventUseCases = FixedEventUseCases(
+    DefaultFixedEventRepository(
+        source = sources.fixedEvents,
+        workspaces = sources.workspaces,
+        workSessions = sources.workSessions,
+        tasks = sources.tasks,
+        ownerUserId = LOCAL_ACTOR_ID,
+        transaction = sources.transaction,
+    ),
+    defaultZone = EventLocalZone,
+)
 
 /** 编辑对象：底层记录 + 被点击课次的实际起止；originalDate 非空表示重复序列中的某次。 */
 internal data class EventEditorTarget(
@@ -78,12 +94,9 @@ internal fun FixedEventEditorDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
     onDeleted: () -> Unit = onSaved,
+    fixedEventUseCases: FixedEventUseCases? = null,
 ) {
-    val schedule = remember(sources) {
-        FixedEventSchedule(
-            sources.fixedEvents, sources.workSessions, sources.workspaces, LOCAL_ACTOR_ID, sources.transaction,
-        )
-    }
+    val activeUseCases = fixedEventUseCases ?: remember(sources) { localFixedEventUseCases(sources) }
     val defaultStart = remember { defaultEventStart() }
     val baseStart = target?.occurrenceStart ?: defaultStart
     val baseEnd = target?.occurrenceEnd ?: (defaultStart + 60 * 60 * 1000)
@@ -135,6 +148,16 @@ internal fun FixedEventEditorDialog(
         )
     }
 
+    fun resolveTarget(current: EventEditorTarget): FixedEventTarget =
+        if (current.originalDate != null) {
+            FixedEventTarget.Occurrence(
+                seriesId = current.event.seriesId ?: current.event.id,
+                originalDate = current.originalDate,
+            )
+        } else {
+            FixedEventTarget.SingleOrSeries(current.event.id)
+        }
+
     fun submit(confirmed: FixedEventConfirmation? = null) {
         if (saving || deleting) return
         val draft = try {
@@ -149,9 +172,15 @@ internal fun FixedEventEditorDialog(
         scopeOwner.launch {
             try {
                 val result = if (target == null) {
-                    schedule.create(draft, confirmed)
+                    activeUseCases.create(draft = draft, confirmed = confirmed, zone = EventLocalZone)
                 } else {
-                    schedule.update(target.event, draft, target.originalDate, scope, confirmed)
+                    activeUseCases.update(
+                        target = resolveTarget(target),
+                        draft = draft,
+                        scope = scope,
+                        confirmed = confirmed,
+                        zone = EventLocalZone,
+                    )
                 }
                 when (result) {
                     is FixedEventSaveResult.Saved -> onSaved()
@@ -169,12 +198,13 @@ internal fun FixedEventEditorDialog(
     }
 
     fun confirmDelete() {
-        if (target == null || deleting) return
+        val current = target ?: return
+        if (deleting) return
         deleting = true
         error = null
         scopeOwner.launch {
             try {
-                schedule.delete(target.event, target.originalDate, scope)
+                activeUseCases.delete(target = resolveTarget(current), scope = scope, zone = EventLocalZone)
                 onDeleted()
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -308,7 +338,11 @@ internal fun FixedEventEditorDialog(
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("以下安排与本次事件重叠。可返回修改，或明确保留重叠后保存。")
                     pending.conflicts.forEach { conflict ->
-                        val label = if (conflict.kind == ScheduleConflictKind.WORK_SESSION) "我的工作时段" else conflict.title
+                        val label = if (conflict.kind == ScheduleConflictKind.WORK_SESSION && conflict.title != "我的工作时段") {
+                            "工作时段 · ${conflict.title}"
+                        } else {
+                            conflict.title
+                        }
                         Text("$label\n${formatEventEditTime(conflict.startsAt)} — ${formatEventEditTime(conflict.endsAt)}")
                     }
                 }

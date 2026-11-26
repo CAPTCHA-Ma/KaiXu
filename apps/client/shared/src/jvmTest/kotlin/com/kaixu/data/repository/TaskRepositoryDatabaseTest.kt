@@ -1,7 +1,8 @@
 package com.kaixu.data.repository
 
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import androidx.sqlite.execSQL
+import androidx.room.execSQL
+import androidx.room.useWriterConnection
+import androidx.sqlite.SQLiteException
 import com.kaixu.app.di.AppGraph
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.RoomFixedEventDataSource
@@ -100,7 +101,7 @@ class TaskRepositoryDatabaseTest {
                 )
 
                 val ownedSpace = sources.workspaces.createWorkspace(WorkspaceKind.COURSE, "软件工程")
-                BundledSQLiteDriver().open(file.absolutePath).use { conn ->
+                db.useWriterConnection { conn ->
                     conn.execSQL(
                         """INSERT INTO workspaces (id, owner_user_id, kind, visibility, name, status, created_at, updated_at, updated_by, local_revision, sync_state)
                            VALUES ('foreign-ws', 'other-user', 'PROJECT', 'PERSONAL', '他人工作区', 'ACTIVE', 1000, 1000, 'other-user', 0, 'LOCAL_ONLY')""",
@@ -126,24 +127,25 @@ class TaskRepositoryDatabaseTest {
                 )
 
                 // 模拟同一事务中更新工作时段触发 SQLite 异常：任务表更新必须一并回滚，快照和 revision 保持不变
-                BundledSQLiteDriver().open(file.absolutePath).use { conn ->
+                db.useWriterConnection { conn ->
                     conn.execSQL(
                         "CREATE TRIGGER fail_ws_update BEFORE UPDATE ON work_sessions BEGIN SELECT RAISE(ABORT, 'simulated abort'); END",
                     )
                 }
-                assertFails {
+                val rejected = assertFailsWith<SQLiteException> {
                     repo.writeTransaction {
                         assertTrue(replaceTask(task.copy(status = TaskStatus.COMPLETED, completedAt = 50_000L)))
                         updateOwnerWorkSession(ownedPlan.copy(status = WorkSessionStatus.CANCELLED))
                     }
                 }
+                assertContains(rejected.message.orEmpty(), "simulated abort")
                 assertEquals(TaskStatus.TODO, sources.tasks.findTaskById(task.id)?.status)
                 assertEquals(TaskStatus.TODO, repo.tasks.value.single().status)
                 assertEquals(WorkSessionStatus.PLANNED, sources.workSessions.findWorkSessionById(ownedPlan.id)?.status)
                 assertEquals(1L, repo.revision.value)
 
                 // 移除触发器后重试同一事务：任务完成、本人时段取消且活动计时中断，只递增一次 revision
-                BundledSQLiteDriver().open(file.absolutePath).use { it.execSQL("DROP TRIGGER fail_ws_update") }
+                db.useWriterConnection { it.execSQL("DROP TRIGGER fail_ws_update") }
                 repo.writeTransaction {
                     assertTrue(replaceTask(task.copy(status = TaskStatus.COMPLETED, completedAt = 50_000L)))
                     assertTrue(updateOwnerWorkSession(ownedPlan.copy(status = WorkSessionStatus.CANCELLED)))

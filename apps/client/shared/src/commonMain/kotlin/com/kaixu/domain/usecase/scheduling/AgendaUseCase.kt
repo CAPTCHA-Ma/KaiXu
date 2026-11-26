@@ -1,5 +1,6 @@
 package com.kaixu.domain.usecase.scheduling
 
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
@@ -69,11 +70,13 @@ class AgendaUseCase(
             it.name + if (it.status == WorkspaceStatus.ARCHIVED) " · 已归档" else ""
         }
         val allEvents = events.listEvents().filter { it.createdBy == ownerUserId }
-        val lookback = allEvents.filter { it.isRecurring }.maxOfOrNull { it.endsAt - it.startsAt } ?: 0L
         val occurrences = Recurrence.expand(
-            allEvents, events.listOverridesIncludingDeleted().filter { it.createdBy == ownerUserId },
-            window.start - lookback.coerceAtLeast(0), window.endExclusive,
-        ).filter { it.startsAt < window.endExclusive && it.endsAt > window.start }
+            allEvents,
+            events.listOverridesIncludingDeleted().filter { it.createdBy == ownerUserId },
+            window.start,
+            window.endExclusive,
+            LocalZone.of("Asia/Shanghai"),
+        )
 
         val entries = buildList {
             occurrences.forEach { occurrence ->

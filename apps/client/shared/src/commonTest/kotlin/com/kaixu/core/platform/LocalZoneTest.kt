@@ -65,5 +65,36 @@ class LocalZoneTest {
         assertFailsWith<IllegalArgumentException> { CalendarDate.plusDays("0000-01-01", 1) }
         assertFailsWith<IllegalArgumentException> { CalendarDate.plusDays("0001-01-01", -1) }
         assertFailsWith<IllegalArgumentException> { CalendarDate.plusDays("9999-12-31", 1) }
+        assertFailsWith<IllegalArgumentException> { utcZone.localTimeOfDayMillis(0L).let { utcZone.atLocalDateTimeMillis("2026-11-25", -1L) } }
+        assertFailsWith<IllegalArgumentException> { utcZone.atLocalDateTimeMillis("2026-11-25", 86_400_000L) }
+    }
+
+    @Test
+    fun calendarDateComputesWeekdayDaysBetweenAndMondayWeekStart() {
+        // 2026-11-23 周一 .. 2026-11-29 周日
+        assertEquals(1, CalendarDate.isoWeekday("2026-11-23"))
+        assertEquals(4, CalendarDate.isoWeekday("2026-11-26"))
+        assertEquals(7, CalendarDate.isoWeekday("2026-11-29"))
+        assertEquals("2026-11-23", CalendarDate.weekStartMonday("2026-11-23"))
+        assertEquals("2026-11-23", CalendarDate.weekStartMonday("2026-11-26"))
+        assertEquals("2026-11-23", CalendarDate.weekStartMonday("2026-11-29"))
+        assertEquals(3L, CalendarDate.daysBetween("2026-11-23", "2026-11-26"))
+        assertEquals(-3L, CalendarDate.daysBetween("2026-11-26", "2026-11-23"))
+    }
+
+    @Test
+    fun wallClockTimeOfDayPreservesLocalHourAcrossDstTransitions() {
+        val nyZone = LocalZone.of("America/New_York")
+        val nineAm = 9L * 3_600_000L
+
+        val beforeSpring = nyZone.atLocalDateTimeMillis("2026-03-01", nineAm)
+        val afterSpring = nyZone.atLocalDateTimeMillis("2026-03-08", nineAm)
+        val afterFall = nyZone.atLocalDateTimeMillis("2026-11-01", nineAm)
+
+        assertEquals(nineAm, nyZone.localTimeOfDayMillis(beforeSpring))
+        assertEquals(nineAm, nyZone.localTimeOfDayMillis(afterSpring))
+        assertEquals(nineAm, nyZone.localTimeOfDayMillis(afterFall))
+        // 2026-03-08 经过 02:00->03:00 跳变，次周同一本地时刻实际间隔少 1 小时
+        assertEquals(7L * 24L * 3_600_000L - 3_600_000L, afterSpring - beforeSpring)
     }
 }
