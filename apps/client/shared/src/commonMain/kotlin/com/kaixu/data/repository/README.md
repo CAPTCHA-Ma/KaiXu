@@ -1,15 +1,10 @@
 # 仓储实现
 
-`DefaultTaskRepository.kt` 实现 domain 中的 TaskRepository，注入 TaskDataSource。它负责刷新列表、保存成功后发布新快照，并用 Mutex 协调读写。
+`data/repository` 实现 `domain/repository` 中的各仓储契约，注入本地数据源、跨表 `LocalTransaction` 与共享修订信号 `LocalDataRevision`：
 
-业务输入规则由领域 TaskInput 统一定义，UseCase 和仓储入口共同校验，防止直接调用仓储绕过规则。仓储负责完整 Task 的创建、编辑、软删除、查找、工作区筛选和标题/描述搜索，并仅在写入成功后更新 tasks。未来接入远程与缓存时，这里决定在线读取和个人缓存的更新；源返回的 DTO 在数据层转换后才进入业务层。
+- `DefaultTaskRepository`：维护已确认任务快照 `StateFlow`，使用 `Mutex` 串行化写事务并在提交成功后原子应用暂存变更、递增修订号。
+- `DefaultFixedEventRepository`：维护已确认固定事件排序快照，纯读不加互斥锁以避免写事务内重入死锁，写事务提交成功后统一更新快照并递增修订号。
+- `DefaultWorkSessionRepository`：绑定本人身份协调工作时段、任务、工作区、固定事件（含重复例外与取消占位）及专注计时数据源；不持有独立可变列表缓存（避免任务删除脱链或完成取消后产生陈旧快照），纯读不加锁，写事务仅在实际发生修改且成功提交后递增共享修订号。
+- `DefaultFocusRepository`：绑定本人身份协调专注会话、有效计时片段及关联工作时段数据源；支持在同一写事务内原子更新默认 `focusTargetSeconds` 与写入 `FocusSession`，幂等重试不重复递增修订号，异常回滚时修订号保持不变。
 
-网络失败、超时和冲突不得发布虚假的成功数据。共享内容必须在线验证权限；离线仅提供当前账号的个人缓存，不增加离线写队列。账号切换后旧请求不能把旧账号结果写入新会话。
-
-## 适宜存放的文件
-
-`DefaultWorkSessionRepository` 绑定本人身份，协调计划时段、任务、工作区及固定事件数据源。
-`DefaultFocusRepository` 协调本人会话与片段，两者都不保存独立列表缓存。
-上层业务用例通过 `LocalTransaction` 在同一 Room 写事务里复查约束、追加片段和变更状态。
-
-可加入 DefaultWorkspaceRepository.kt、DefaultScheduleRepository.kt 等仓储实现；一个实现可协调多个来源。当前 Mutex 仅保护本对象的访问，不能替代跨端版本验证或服务端事务。
+网络失败、存储异常或并发校验失败均原样抛出，绝不发布虚假的成功快照或递增修订号。

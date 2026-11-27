@@ -1,33 +1,33 @@
 package com.kaixu.domain.usecase.scheduling
 
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import androidx.sqlite.execSQL
+import androidx.room.execSQL
+import androidx.room.useWriterConnection
 import com.kaixu.app.di.LocalSchedulingGraph
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
+import com.kaixu.data.datasource.local.database.KaiXuDatabase
 import com.kaixu.data.datasource.local.database.openDesktopDatabase
 import com.kaixu.domain.model.scheduling.*
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.workspaces.WorkspaceKind
-import java.io.File
 import java.nio.file.Files
 import java.time.Instant
-import java.time.ZoneId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class LocalSchedulingUseCasesTest {
     private val owner = "00000000-0000-0000-0000-000000000001"
-    private fun dateAt(millis: Long) = Instant.ofEpochMilli(millis).atZone(ZoneId.of("Asia/Shanghai")).toLocalDate().toString()
+    private val shanghai = LocalZone.of("Asia/Shanghai")
 
-    private suspend fun withStore(block: suspend (File, LocalDataSources, LocalSchedulingGraph) -> Unit) {
+    private suspend fun withStore(block: suspend (KaiXuDatabase, LocalDataSources, LocalSchedulingGraph) -> Unit) {
         val directory = Files.createTempDirectory("kaixu-scheduling-usecases").toFile()
         try {
             val file = directory.resolve("test.db")
             val db = openDesktopDatabase(file)
             try {
                 val sources = LocalDataSources(db)
-                block(file, sources, LocalSchedulingGraph(sources, owner, ::dateAt))
+                block(db, sources, LocalSchedulingGraph(sources, owner, shanghai))
             } finally { db.close() }
         } finally { directory.deleteRecursively() }
     }
@@ -42,13 +42,13 @@ class LocalSchedulingUseCasesTest {
             sources.fixedEvents.createEvent(FixedEvent("event", "课程", 100, 200))
             val drafts = listOf(WorkSessionDraft(task.id, 0, 500, id = "a"), WorkSessionDraft(task.id, 400, 1200, id = "b"))
             val first = review(graph.createWorkSessions(drafts))
-            assertEquals(listOf("event"), first.events.map { it.id })
+            assertEquals(listOf("event"), first.fixedEventConflicts.map { it.key })
             assertEquals(listOf(ProposedSessionOverlap("a", "b")), first.proposedOverlaps)
             assertEquals(listOf("b"), first.pastDeadlineIds)
             assertTrue(graph.workSessionRepository.listByTask(task.id).isEmpty())
             sources.fixedEvents.createEvent(FixedEvent("new-event", "新增占用", 600, 700))
             val second = review(graph.createWorkSessions(drafts, first))
-            assertEquals(2, second.events.size)
+            assertEquals(2, second.fixedEventConflicts.size)
             assertTrue(graph.workSessionRepository.listByTask(task.id).isEmpty())
             val created = saved(graph.createWorkSessions(drafts, second))
             assertTrue(created.all { it.overlapConfirmed })
@@ -180,19 +180,23 @@ class LocalSchedulingUseCasesTest {
 
     @Test
     fun failedFinishRollsBackTheFinalSegmentAndLeavesTheSessionRunning() = runTest {
-        withStore { file, sources, graph ->
+        withStore { db, sources, graph ->
             val task = sources.tasks.createTask("任务")
             val plan = saved(graph.createWorkSessions(listOf(WorkSessionDraft(task.id, 0, 1000, id = "p")))).single()
             val session = graph.startFocusSession(plan.id, 0, sessionId = "f")
             val last = FocusSegment("g", session.id, "last", 0, 1000, FocusMode.FOREGROUND)
-            BundledSQLiteDriver().open(file.absolutePath).use { connection ->
-                connection.execSQL("""CREATE TRIGGER fail_finish BEFORE UPDATE ON focus_sessions
-                    BEGIN SELECT RAISE(ABORT, 'simulated failure'); END""")
+            val revisionBefore = graph.localRevision.version.value
+            db.useWriterConnection { connection ->
+                connection.execSQL(
+                    """CREATE TRIGGER fail_finish BEFORE UPDATE ON focus_sessions
+                    BEGIN SELECT RAISE(ABORT, 'simulated failure'); END""",
+                )
             }
             assertFails { graph.controlFocusSession.finish(session.id, 1000, finalSegment = last) }
             assertTrue(graph.focusRepository.listSegments(session.id).isEmpty())
             assertEquals(FocusSessionStatus.ACTIVE, graph.focusRepository.findSessionById(session.id)?.status)
-            BundledSQLiteDriver().open(file.absolutePath).use { it.execSQL("DROP TRIGGER fail_finish") }
+            assertEquals(revisionBefore, graph.localRevision.version.value)
+            db.useWriterConnection { it.execSQL("DROP TRIGGER fail_finish") }
             assertFails { graph.controlFocusSession.finish(session.id, 500, finalSegment = last) }
             assertTrue(graph.focusRepository.listSegments(session.id).isEmpty())
             graph.controlFocusSession.finish(session.id, 1000, finalSegment = last)
@@ -206,8 +210,10 @@ class LocalSchedulingUseCasesTest {
             val task = sources.tasks.createTask("任务")
             val plans = saved(graph.createWorkSessions(listOf(WorkSessionDraft(task.id, 0, 1000, id = "a"), WorkSessionDraft(task.id, 1000, 2000, id = "b"))))
             val session = graph.startFocusSession(plans[0].id, 0, sessionId = "focus")
+            val revisionBeforeFailedStart = graph.localRevision.version.value
             assertFails { graph.startFocusSession(plans[1].id, 1000, sessionId = "parallel") }
             assertNull(graph.workSessionRepository.findById(plans[1].id)?.focusTargetSeconds)
+            assertEquals(revisionBeforeFailedStart, graph.localRevision.version.value)
             graph.controlFocusSession.pause(session.id)
             sources.tasks.updateTask(task.copy(status = TaskStatus.COMPLETED, completedAt = 1000))
             assertFails { graph.controlFocusSession.resume(session.id) }
@@ -239,7 +245,7 @@ class LocalSchedulingUseCasesTest {
             val first = review(graph.createWorkSessions(listOf(draft)))
             sources.tasks.updateTask(task.copy(deadlineAt = 400))
             val second = review(graph.createWorkSessions(listOf(draft), first))
-            assertNotEquals(first.tasks, second.tasks)
+            assertNotEquals(first.confirmationKey, second.confirmationKey)
             val plan = saved(graph.createWorkSessions(listOf(draft), second)).single()
             graph.startFocusSession(plan.id, 2000, sessionId = "focus")
             assertFails { graph.updateWorkSession(plan, draft.copy(focusTargetSeconds = 1)) }

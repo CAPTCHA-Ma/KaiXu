@@ -11,19 +11,33 @@ import androidx.compose.ui.unit.dp
 import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
+import com.kaixu.data.repository.DefaultWorkSessionRepository
 import com.kaixu.domain.model.tasks.TaskStatus
 import com.kaixu.domain.model.tasks.Task
 import com.kaixu.domain.model.scheduling.FixedEvent
 import com.kaixu.domain.model.scheduling.FixedEventTarget
 import com.kaixu.domain.model.scheduling.WorkSessionStatus
-import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.desktop.presentation.ui.scheduling.EventEditorTarget
 import com.kaixu.desktop.presentation.ui.scheduling.FixedEventEditorDialog
 import com.kaixu.desktop.presentation.ui.scheduling.localFixedEventUseCases
 import com.kaixu.desktop.presentation.ui.workspaces.localMoment
 import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
+import com.kaixu.domain.usecase.scheduling.WorkSessionUseCases
 import com.kaixu.domain.usecase.tasks.TaskUseCases
 import kotlinx.coroutines.CancellationException
+
+internal fun localWorkSessionUseCases(sources: LocalDataSources): WorkSessionUseCases = WorkSessionUseCases(
+    DefaultWorkSessionRepository(
+        source = sources.workSessions,
+        tasks = sources.tasks,
+        events = sources.fixedEvents,
+        workspaces = sources.workspaces,
+        ownerUserId = LOCAL_ACTOR_ID,
+        transaction = sources.transaction,
+        focus = sources.focus,
+    ),
+    defaultZone = LocalZone.of("Asia/Shanghai"),
+)
 
 enum class RecordKind { TASK, EVENT, SESSION }
 data class LocalRecordTarget(val kind: RecordKind, val id: String)
@@ -43,12 +57,21 @@ fun LocalRecordRoute(
     onBack: () -> Unit,
     taskUseCases: TaskUseCases? = null,
     fixedEventUseCases: FixedEventUseCases? = null,
+    workSessionUseCases: WorkSessionUseCases? = null,
 ) {
     val activeTaskUseCases = taskUseCases ?: remember(sources) { localTaskUseCases(sources) }
     val activeFixedEventUseCases = fixedEventUseCases ?: remember(sources) { localFixedEventUseCases(sources) }
+    val activeWorkSessionUseCases = workSessionUseCases ?: remember(sources) { localWorkSessionUseCases(sources) }
     var retry by remember(target) { mutableIntStateOf(0) }
     var editing by remember(target) { mutableStateOf(false) }
-    val state by produceState(RecordState(), target, retry, activeTaskUseCases, activeFixedEventUseCases) {
+    val state by produceState(
+        RecordState(),
+        target,
+        retry,
+        activeTaskUseCases,
+        activeFixedEventUseCases,
+        activeWorkSessionUseCases,
+    ) {
         value = RecordState()
         try {
             val details = when (target.kind) {
@@ -89,32 +112,32 @@ fun LocalRecordRoute(
                         detail.canEdit && !detail.supportsScopeSelection && !event.isOccurrenceOverride
                     })
                 }
-                RecordKind.SESSION -> sources.workSessions.findWorkSessionById(target.id)
-                    ?.takeIf { it.ownerUserId == LOCAL_ACTOR_ID }?.let { session ->
-                        val task = session.taskId?.let { sources.tasks.findTaskById(it) }
-                        val workspace = task?.workspaceId?.let { sources.workspaces.findWorkspaceById(it) }
-                        RecordDetails("我的工作时段", listOfNotNull(
-                            "执行时间" to "${localMoment(session.startsAt)} — ${localMoment(session.endsAt)}",
-                            "状态" to when (session.status) {
-                                WorkSessionStatus.PLANNED -> "已安排"
-                                WorkSessionStatus.COMPLETED -> "已完成"
-                                WorkSessionStatus.CANCELLED -> "已取消"
-                            },
-                            session.note?.let { "说明" to it },
-                            "截止要求" to (task?.let {
-                                it.deadlineDate ?: it.deadlineAt?.let(::localMoment) ?: "无截止"
-                            } ?: "无关联任务"),
-                            task?.let { "关联任务" to it.title },
-                            "所属工作区" to (workspace?.name ?: when {
-                                task == null -> "无关联任务"
-                                task.workspaceId == null -> "独立任务"
-                                else -> "关联工作区暂不可用"
-                            }),
-                            (workspace?.status == WorkspaceStatus.ARCHIVED).takeIf { it }?.let {
-                                "工作区状态" to "已归档，安排只读"
-                            },
-                        ))
-                    }
+                RecordKind.SESSION -> activeWorkSessionUseCases.getDetail(target.id)?.let { detail ->
+                    val session = detail.session
+                    val task = detail.task
+                    val workspace = detail.workspace
+                    RecordDetails("我的工作时段", listOfNotNull(
+                        "执行时间" to "${localMoment(session.startsAt)} — ${localMoment(session.endsAt)}",
+                        "状态" to when (session.status) {
+                            WorkSessionStatus.PLANNED -> "已安排"
+                            WorkSessionStatus.COMPLETED -> "已完成"
+                            WorkSessionStatus.CANCELLED -> "已取消"
+                        },
+                        session.note?.let { "说明" to it },
+                        "截止要求" to (task?.let {
+                            it.deadlineDate ?: it.deadlineAt?.let(::localMoment) ?: "无截止"
+                        } ?: "无关联任务"),
+                        task?.let { "关联任务" to it.title },
+                        "所属工作区" to (workspace?.name ?: when {
+                            task == null -> "无关联任务"
+                            task.workspaceId == null -> "独立任务"
+                            else -> "关联工作区暂不可用"
+                        }),
+                        detail.workspaceArchived.takeIf { it }?.let {
+                            "工作区状态" to "已归档，安排只读"
+                        },
+                    ))
+                }
             }
             value = RecordState(loading = false, details = details)
         } catch (cancelled: CancellationException) {

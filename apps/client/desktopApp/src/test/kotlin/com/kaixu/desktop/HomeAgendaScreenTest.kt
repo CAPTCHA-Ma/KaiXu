@@ -20,14 +20,13 @@ import androidx.lifecycle.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.kaixu.app.di.AppGraph
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.local.LocalDataSources
 import com.kaixu.data.datasource.local.database.openDesktopDatabase
-import com.kaixu.data.datasource.local.entity.LOCAL_ACTOR_ID
 import com.kaixu.desktop.app.DesktopApp
 import com.kaixu.desktop.preview.seedHomeAgendaPreview
 import com.kaixu.domain.model.workspaces.WorkspaceKind
 import com.kaixu.domain.usecase.scheduling.AgendaSnapshot
-import com.kaixu.domain.usecase.scheduling.AgendaUseCase
 import com.kaixu.domain.usecase.scheduling.AgendaWindow
 import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import kotlinx.coroutines.runBlocking
@@ -66,8 +65,11 @@ class HomeAgendaScreenTest {
     private fun start(unboundedWidth: Boolean = false) {
         runBlocking {
             seedHomeAgendaPreview(sources, now)
-            snapshot = AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces)(
-                LOCAL_ACTOR_ID, AgendaWindow.around(ShanghaiTime.localDateOf(now)))
+            val shanghai = LocalZone.of("Asia/Shanghai")
+            snapshot = AppGraph(sources).queryHomeAgenda(
+                AgendaWindow.around(shanghai.localDateOf(now), shanghai),
+                shanghai,
+            )
         }
         compose.setContent {
             if (visible.value) CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {

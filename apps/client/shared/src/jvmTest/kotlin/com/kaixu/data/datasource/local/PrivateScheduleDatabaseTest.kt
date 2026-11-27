@@ -1,5 +1,7 @@
 package com.kaixu.data.datasource.local
 
+import androidx.room.execSQL as roomExecSQL
+import androidx.room.useWriterConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import com.kaixu.data.datasource.local.database.KaiXuDatabase
@@ -121,21 +123,21 @@ class PrivateScheduleDatabaseTest {
 
     @Test
     fun deletionStopsActiveTimingButPreservesHistoryAndRollsBackOnFailure() = runTest {
-        withFile { file -> file.open { _, sources ->
+        withFile { file -> file.open { db, sources ->
             val task = sources.tasks.createTask("任务")
             val plan = WorkSession("plan", task.id, 0, 1000)
             sources.workSessions.createWorkSession(plan)
             val focus = FocusSession("focus", plan.id, 0)
             sources.focus.createFocusSession(focus)
             sources.focus.appendFocusSegment(FocusSegment("seg", focus.id, "key", 0, 1000, FocusMode.FOREGROUND))
-            BundledSQLiteDriver().open(file.absolutePath).use { connection ->
-                connection.execSQL("""CREATE TRIGGER fail_delete BEFORE UPDATE OF deleted_at ON tasks
+            db.useWriterConnection { connection ->
+                connection.roomExecSQL("""CREATE TRIGGER fail_delete BEFORE UPDATE OF deleted_at ON tasks
                     BEGIN SELECT RAISE(ABORT, 'write failure'); END""")
             }
             assertFails { sources.tasks.deleteTaskById(task.id) }
             assertEquals(FocusSessionStatus.ACTIVE, sources.focus.findFocusSessionById(focus.id)?.status)
             assertEquals(task.id, sources.workSessions.findWorkSessionById(plan.id)?.taskId)
-            BundledSQLiteDriver().open(file.absolutePath).use { it.execSQL("DROP TRIGGER fail_delete") }
+            db.useWriterConnection { it.roomExecSQL("DROP TRIGGER fail_delete") }
             assertTrue(sources.tasks.deleteTaskById(task.id))
             assertNull(sources.workSessions.findWorkSessionById(plan.id)?.taskId)
             assertEquals(FocusSessionStatus.INTERRUPTED, sources.focus.findFocusSessionById(focus.id)?.status)

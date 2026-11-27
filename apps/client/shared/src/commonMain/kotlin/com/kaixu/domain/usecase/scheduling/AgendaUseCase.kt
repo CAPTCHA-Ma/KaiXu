@@ -1,15 +1,14 @@
 package com.kaixu.domain.usecase.scheduling
 
+import com.kaixu.core.platform.CalendarDate
 import com.kaixu.core.platform.LocalZone
 import com.kaixu.data.datasource.FixedEventDataSource
 import com.kaixu.data.datasource.TaskDataSource
 import com.kaixu.data.datasource.WorkSessionDataSource
 import com.kaixu.data.datasource.WorkspaceDataSource
-import com.kaixu.domain.model.scheduling.Recurrence
-import com.kaixu.domain.model.scheduling.WorkSessionStatus
-import com.kaixu.domain.model.tasks.TaskStatus
-import com.kaixu.domain.model.workspaces.WorkspaceStatus
-import com.kaixu.domain.validation.scheduling.ShanghaiTime
+import com.kaixu.data.repository.DefaultFixedEventRepository
+import com.kaixu.data.repository.DefaultTaskRepository
+import com.kaixu.data.repository.DefaultWorkSessionRepository
 import kotlin.math.abs
 
 enum class AgendaKind { FIXED_EVENT, WORK_SESSION, TASK_DEADLINE }
@@ -31,11 +30,17 @@ data class AgendaEntry(
 
 data class AgendaWindow(val today: String, val start: Long, val endExclusive: Long) {
     companion object {
-        fun around(today: String): AgendaWindow = AgendaWindow(
-            today,
-            ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(today, -1), 0),
-            ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(today, 2), 0),
-        )
+        fun around(
+            today: String,
+            zone: LocalZone = LocalZone.systemDefault(),
+        ): AgendaWindow {
+            require(CalendarDate.isValidDate(today)) { "日期无效：$today" }
+            return AgendaWindow(
+                today = today,
+                start = zone.startOfDayMillis(CalendarDate.plusDays(today, -1L)),
+                endExclusive = zone.startOfDayMillis(CalendarDate.plusDays(today, 2L)),
+            )
+        }
     }
 }
 
@@ -54,67 +59,39 @@ data class AgendaSnapshot(val window: AgendaWindow, val entries: List<AgendaEntr
     }
 }
 
-/** 全局日程的只读聚合：复用课次展开与本地访问边界，不创建重复任务或时段。 */
+/** 兼容入口：包装既有数据源为仓储并统一委托至 [QueryHomeAgendaUseCase]。 */
 class AgendaUseCase(
     private val tasks: TaskDataSource,
     private val events: FixedEventDataSource,
     private val sessions: WorkSessionDataSource,
     private val workspaces: WorkspaceDataSource,
 ) {
-    suspend operator fun invoke(ownerUserId: String, window: AgendaWindow): AgendaSnapshot {
+    suspend operator fun invoke(
+        ownerUserId: String,
+        window: AgendaWindow,
+        zone: LocalZone = LocalZone.of("Asia/Shanghai"),
+    ): AgendaSnapshot {
         require(ownerUserId.isNotBlank())
-        val allTasks = tasks.listTasks().filter { it.createdBy == ownerUserId || it.assigneeUserId == ownerUserId }
-        val tasksById = allTasks.associateBy { it.id }
-        val spaces = workspaces.listWorkspaces(status = null).filter { it.ownerUserId == ownerUserId }.associateBy { it.id }
-        fun workspaceLabel(id: String?): String? = spaces[id]?.let {
-            it.name + if (it.status == WorkspaceStatus.ARCHIVED) " · 已归档" else ""
-        }
-        val allEvents = events.listEvents().filter { it.createdBy == ownerUserId }
-        val occurrences = Recurrence.expand(
-            allEvents,
-            events.listOverridesIncludingDeleted().filter { it.createdBy == ownerUserId },
-            window.start,
-            window.endExclusive,
-            LocalZone.of("Asia/Shanghai"),
+        val taskRepo = DefaultTaskRepository(
+            source = tasks,
+            workspaces = workspaces,
+            workSessions = sessions,
+            ownerUserId = ownerUserId,
         )
-
-        val entries = buildList {
-            occurrences.forEach { occurrence ->
-                add(AgendaEntry(
-                    key = "event:${occurrence.key}", recordId = occurrence.eventId,
-                    kind = AgendaKind.FIXED_EVENT, title = occurrence.title,
-                    time = occurrence.startsAt, endsAt = occurrence.endsAt,
-                    workspace = workspaceLabel(occurrence.workspaceId),
-                ))
-            }
-            sessions.listWorkSessionsInRange(ownerUserId, window.start, window.endExclusive)
-                .filter { it.ownerUserId == ownerUserId && it.status != WorkSessionStatus.CANCELLED }
-                .filter { it.startsAt < window.endExclusive && it.endsAt > window.start }
-                .forEach { session ->
-                    val task = tasksById[session.taskId]
-                    add(AgendaEntry(
-                        key = "session:${session.id}", recordId = session.id,
-                        kind = AgendaKind.WORK_SESSION, title = task?.title ?: "个人工作时段",
-                        time = session.startsAt, endsAt = session.endsAt,
-                        workspace = workspaceLabel(task?.workspaceId),
-                        completed = session.status == WorkSessionStatus.COMPLETED,
-                    ))
-                }
-            allTasks.forEach { task ->
-                val time = task.deadlineAt ?: task.deadlineDate?.let { date ->
-                    // 仅日期的截止排在当天末尾，界面始终显示“当天截止”，不伪造执行时刻。
-                    ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(date, 1), 0) - 1
-                } ?: return@forEach
-                if (time >= window.start && time < window.endExclusive) {
-                    add(AgendaEntry(
-                        key = "task:${task.id}", recordId = task.id, kind = AgendaKind.TASK_DEADLINE,
-                        title = task.title, time = time, dateOnly = task.deadlineAt == null,
-                        workspace = workspaceLabel(task.workspaceId),
-                        completed = task.status == TaskStatus.COMPLETED,
-                    ))
-                }
-            }
-        }.sortedWith(compareBy(AgendaEntry::time, { it.kind.ordinal }, AgendaEntry::key))
-        return AgendaSnapshot(window, entries)
+        val eventRepo = DefaultFixedEventRepository(
+            source = events,
+            workspaces = workspaces,
+            workSessions = sessions,
+            tasks = tasks,
+            ownerUserId = ownerUserId,
+        )
+        val sessionRepo = DefaultWorkSessionRepository(
+            source = sessions,
+            tasks = tasks,
+            events = events,
+            workspaces = workspaces,
+            ownerUserId = ownerUserId,
+        )
+        return QueryHomeAgendaUseCase(taskRepo, eventRepo, sessionRepo, zone)(window, zone)
     }
 }

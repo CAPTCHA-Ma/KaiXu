@@ -14,11 +14,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.savedstate.read
 import com.kaixu.app.di.AppGraph
+import com.kaixu.core.platform.LocalZone
 import com.kaixu.desktop.presentation.ui.settings.SettingsScreen
 import com.kaixu.desktop.presentation.ui.home.HomeScreen
 import com.kaixu.desktop.presentation.ui.home.HomeRoute
 import com.kaixu.desktop.presentation.viewmodel.home.HomeViewModel
-import com.kaixu.domain.usecase.scheduling.AgendaUseCase
 import com.kaixu.desktop.presentation.ui.tasks.TaskEditorRoute
 import com.kaixu.presentation.viewmodel.tasks.TaskEditorViewModel
 import com.kaixu.presentation.viewmodel.workspaces.WorkspaceViewModel
@@ -99,11 +99,10 @@ fun DesktopNavigation(
                 else {
                     val home = viewModel<HomeViewModel>(viewModelStoreOwner = entry) {
                         HomeViewModel(
-                            agenda = AgendaUseCase(sources.tasks, sources.fixedEvents, sources.workSessions, sources.workspaces),
-                            ownerUserId = LOCAL_ACTOR_ID,
-                            workspaces = sources.workspaces,
+                            queryHomeAgenda = graph.queryHomeAgenda,
                             taskUseCases = graph.taskUseCases,
                             fixedEventUseCases = graph.fixedEventUseCases,
+                            zone = LocalZone.of("Asia/Shanghai"),
                         )
                     }
                     HomeRoute(home, onOpenRecord = openRecord,
@@ -184,6 +183,7 @@ fun DesktopNavigation(
                         onBack = navigator::back,
                         taskUseCases = graph.taskUseCases,
                         fixedEventUseCases = graph.fixedEventUseCases,
+                        workSessionUseCases = graph.workSessionUseCases,
                     )
                 }
             }
