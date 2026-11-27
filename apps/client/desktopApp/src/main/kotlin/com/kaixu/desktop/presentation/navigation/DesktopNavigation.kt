@@ -184,6 +184,7 @@ fun DesktopNavigation(
                         onBack = navigator::back,
                         taskUseCases = graph.taskUseCases,
                         fixedEventUseCases = graph.fixedEventUseCases,
+                        workSessionUseCases = graph.workSessionUseCases,
                     )
                 }
             }
