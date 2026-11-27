@@ -3,25 +3,25 @@ package com.kaixu.desktop.presentation.viewmodel.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kaixu.core.platform.LocalZone
-import com.kaixu.data.datasource.WorkspaceDataSource
 import com.kaixu.domain.model.scheduling.FixedEventDraft
 import com.kaixu.domain.model.tasks.TaskDeadline
 import com.kaixu.domain.model.tasks.TaskDraft
 import com.kaixu.domain.model.workspaces.Workspace
-import com.kaixu.domain.model.workspaces.WorkspaceStatus
 import com.kaixu.domain.usecase.scheduling.AgendaSnapshot
-import com.kaixu.domain.usecase.scheduling.AgendaUseCase
-import com.kaixu.domain.usecase.scheduling.AgendaWindow
 import com.kaixu.domain.usecase.scheduling.FixedEventConfirmation
 import com.kaixu.domain.usecase.scheduling.FixedEventSaveResult
-import com.kaixu.domain.usecase.scheduling.FixedEventSchedule
 import com.kaixu.domain.usecase.scheduling.FixedEventUseCases
+import com.kaixu.domain.usecase.scheduling.HomeAgendaFeed
+import com.kaixu.domain.usecase.scheduling.QueryHomeAgendaUseCase
 import com.kaixu.domain.usecase.tasks.TaskUseCases
-import com.kaixu.domain.validation.scheduling.ShanghaiTime
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -53,43 +53,70 @@ data class HomeUiState(
     val error: String? = null,
 )
 
+private data class HomeReloadRequest(
+    val today: String,
+    val token: Long,
+)
+
+private sealed interface HomeFeedResult {
+    data class Ready(val feed: HomeAgendaFeed) : HomeFeedResult
+    data object Failed : HomeFeedResult
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
-    private val agenda: AgendaUseCase,
-    private val ownerUserId: String,
-    private val workspaces: WorkspaceDataSource? = null,
-    private val taskUseCases: TaskUseCases? = null,
-    private val fixedEventSchedule: FixedEventSchedule? = null,
-    private val fixedEventUseCases: FixedEventUseCases? = null,
+    private val queryHomeAgenda: QueryHomeAgendaUseCase,
+    private val taskUseCases: TaskUseCases,
+    private val fixedEventUseCases: FixedEventUseCases,
+    private val zone: LocalZone = LocalZone.of("Asia/Shanghai"),
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(HomeUiState(now = clock()))
     val uiState = mutableState.asStateFlow()
-    private var load: Job? = null
+
+    private val reloadTrigger = MutableStateFlow(
+        HomeReloadRequest(today = zone.localDateOf(mutableState.value.now), token = 0L),
+    )
+
+    init {
+        viewModelScope.launch {
+            reloadTrigger
+                .flatMapLatest { request ->
+                    queryHomeAgenda.observeFeed(flowOf(request.today), zone)
+                        .map<HomeAgendaFeed, HomeFeedResult> { HomeFeedResult.Ready(it) }
+                        .catch { failure ->
+                            if (failure is CancellationException) throw failure
+                            emit(HomeFeedResult.Failed)
+                        }
+                }
+                .collect { result ->
+                    when (result) {
+                        is HomeFeedResult.Ready -> mutableState.update {
+                            it.copy(
+                                agenda = result.feed.agenda,
+                                activeWorkspaces = result.feed.activeWorkspaces,
+                                loading = false,
+                                error = null,
+                            )
+                        }
+                        HomeFeedResult.Failed -> mutableState.update {
+                            it.copy(loading = false, error = "日程读取失败，请重试。")
+                        }
+                    }
+                }
+        }
+    }
 
     fun refresh() {
-        load?.cancel()
         val now = clock()
-        val window = AgendaWindow.around(ShanghaiTime.localDateOf(now))
+        val today = zone.localDateOf(now)
         mutableState.update { it.copy(now = now, loading = true, error = null) }
-        load = viewModelScope.launch {
-            try {
-                val snapshot = agenda(ownerUserId, window)
-                val activeSpaces = workspaces?.listWorkspaces(WorkspaceStatus.ACTIVE)
-                    ?.filter { it.ownerUserId == ownerUserId }
-                    ?.sortedWith(compareBy({ it.kind.ordinal }, { it.name }))
-                    .orEmpty()
-                mutableState.update { it.copy(agenda = snapshot, activeWorkspaces = activeSpaces, loading = false) }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                mutableState.update { it.copy(loading = false, error = "日程读取失败，请重试。") }
-            }
-        }
+        reloadTrigger.update { current -> HomeReloadRequest(today = today, token = current.token + 1L) }
     }
 
     fun tick() {
         val now = clock()
-        if (mutableState.value.agenda?.window?.today != ShanghaiTime.localDateOf(now)) refresh()
+        if (mutableState.value.agenda?.window?.today != zone.localDateOf(now)) refresh()
         else mutableState.update { it.copy(now = now) }
     }
 
@@ -102,8 +129,6 @@ class HomeViewModel(
         return try {
             when (request.kind) {
                 HomeQuickCreateKind.TASK -> {
-                    val useCases = taskUseCases
-                        ?: return HomeQuickCreateOutcome.Failed("当前环境未接入本地任务存储。")
                     val deadline = when {
                         request.taskDeadlineDate != null && request.taskDeadlineAt != null ->
                             throw IllegalArgumentException("日期截止与精确截止不能同时填写")
@@ -111,7 +136,7 @@ class HomeViewModel(
                         request.taskDeadlineAt != null -> TaskDeadline.ExactTime(request.taskDeadlineAt)
                         else -> TaskDeadline.None
                     }
-                    val saved = useCases.createFromDraft(
+                    val saved = taskUseCases.createFromDraft(
                         TaskDraft(
                             title = trimmedTitle,
                             workspaceId = request.workspaceId,
@@ -122,27 +147,17 @@ class HomeViewModel(
                     HomeQuickCreateOutcome.Saved("任务已保存到本地", focusKey = "task:${saved.id}")
                 }
                 HomeQuickCreateKind.EVENT -> {
-                    val draft = resolveEventRange(request.eventStartsAt, request.eventEndsAt, clock()).let { (startsAt, endsAt) ->
-                        FixedEventDraft(
-                            title = trimmedTitle,
-                            startsAt = startsAt,
-                            endsAt = endsAt,
-                            workspaceId = request.workspaceId,
-                        )
-                    }
-                    val result = when {
-                        fixedEventUseCases != null -> fixedEventUseCases.create(
-                            draft = draft,
-                            confirmed = confirmed,
-                            zone = LocalZone.of("Asia/Shanghai"),
-                        )
-                        fixedEventSchedule != null -> fixedEventSchedule.create(draft, confirmed)
-                        else -> return HomeQuickCreateOutcome.Failed("当前环境未接入本地日程存储。")
-                    }
-                    when (result) {
+                    val (startsAt, endsAt) = resolveEventRange(request.eventStartsAt, request.eventEndsAt, clock(), zone)
+                    val draft = FixedEventDraft(
+                        title = trimmedTitle,
+                        startsAt = startsAt,
+                        endsAt = endsAt,
+                        workspaceId = request.workspaceId,
+                    )
+                    when (val result = fixedEventUseCases.create(draft = draft, confirmed = confirmed, zone = zone)) {
                         is FixedEventSaveResult.Saved -> {
                             refreshAndAwait()
-                            val date = ShanghaiTime.localDateOf(result.event.startsAt)
+                            val date = zone.localDateOf(result.event.startsAt)
                             HomeQuickCreateOutcome.Saved("日程已保存到本地", focusKey = "event:${result.event.id}@$date")
                         }
                         is FixedEventSaveResult.NeedsConfirmation ->
@@ -161,33 +176,45 @@ class HomeViewModel(
 
     private suspend fun refreshAndAwait() {
         val now = clock()
-        val window = AgendaWindow.around(ShanghaiTime.localDateOf(now))
-        val snapshot = agenda(ownerUserId, window)
-        val activeSpaces = workspaces?.listWorkspaces(WorkspaceStatus.ACTIVE)
-            ?.filter { it.ownerUserId == ownerUserId }
-            ?.sortedWith(compareBy({ it.kind.ordinal }, { it.name }))
-            .orEmpty()
-        mutableState.update { it.copy(now = now, agenda = snapshot, activeWorkspaces = activeSpaces, loading = false, error = null) }
+        val today = zone.localDateOf(now)
+        val feed = queryHomeAgenda.loadFeed(today, zone)
+        mutableState.update {
+            it.copy(
+                now = now,
+                agenda = feed.agenda,
+                activeWorkspaces = feed.activeWorkspaces,
+                loading = false,
+                error = null,
+            )
+        }
     }
 
     companion object {
         private const val HourMillis = 60L * 60L * 1000L
 
-        /** 日程时间留空时默认取上海时区下一个整点起 1 小时，确保满足开始早于结束规则。 */
-        fun defaultEventRange(now: Long): Pair<Long, Long> {
-            val today = ShanghaiTime.localDateOf(now)
-            val elapsedHours = ShanghaiTime.millisOfDay(now) / HourMillis
-            val nextHour = elapsedHours + 1
-            val start = if (nextHour < 24) {
-                ShanghaiTime.atLocalDate(today, nextHour * HourMillis)
+        /** 日程时间留空时默认取所选时区下一个整点起 1 小时，确保满足开始早于结束规则。 */
+        fun defaultEventRange(
+            now: Long,
+            zone: LocalZone = LocalZone.of("Asia/Shanghai"),
+        ): Pair<Long, Long> {
+            val today = zone.localDateOf(now)
+            val elapsedHours = zone.localTimeOfDayMillis(now) / HourMillis
+            val nextHour = elapsedHours + 1L
+            val start = if (nextHour < 24L) {
+                zone.atLocalDateTimeMillis(today, nextHour * HourMillis)
             } else {
-                ShanghaiTime.atLocalDate(ShanghaiTime.plusDays(today, 1), 0L)
+                zone.startOfNextDayMillis(today)
             }
             return start to (start + HourMillis)
         }
 
-        private fun resolveEventRange(startsAt: Long?, endsAt: Long?, now: Long): Pair<Long, Long> {
-            if (startsAt == null && endsAt == null) return defaultEventRange(now)
+        private fun resolveEventRange(
+            startsAt: Long?,
+            endsAt: Long?,
+            now: Long,
+            zone: LocalZone,
+        ): Pair<Long, Long> {
+            if (startsAt == null && endsAt == null) return defaultEventRange(now, zone)
             require(startsAt != null && endsAt != null) { "请完整设置日程的开始与结束时间。" }
             require(endsAt > startsAt) { "结束时间必须晚于开始时间。" }
             return startsAt to endsAt

@@ -31,6 +31,7 @@ import com.kaixu.domain.usecase.scheduling.FocusUseCases
 import com.kaixu.domain.usecase.scheduling.ListFixedEventsByWorkspaceUseCase
 import com.kaixu.domain.usecase.scheduling.ListFixedEventsInRangeUseCase
 import com.kaixu.domain.usecase.scheduling.ObserveFixedEventsUseCase
+import com.kaixu.domain.usecase.scheduling.QueryHomeAgendaUseCase
 import com.kaixu.domain.usecase.scheduling.RefreshFixedEventsUseCase
 import com.kaixu.domain.usecase.scheduling.UpdateFixedEventUseCase
 import com.kaixu.domain.usecase.scheduling.WorkSessionUseCases
@@ -130,6 +131,11 @@ class AppGraph(
     val focusUseCases = FocusUseCases(
         repository = focusRepository,
         workSessionRepository = workSessionRepository.takeIf { workSessions != null },
+    )
+    val queryHomeAgenda = QueryHomeAgendaUseCase(
+        taskRepository = taskRepository,
+        fixedEventRepository = fixedEventRepository,
+        workSessionRepository = workSessionRepository,
     )
 
     val observeFixedEvents = ObserveFixedEventsUseCase(fixedEventRepository)

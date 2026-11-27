@@ -7,8 +7,9 @@
 - 固定日程与日/周平铺日历查询：`fixedEventRepository` → `fixedEventUseCases: FixedEventUseCases`
 - 个人工作时段模块：`workSessionRepository` → `workSessionUseCases: WorkSessionUseCases`
 - 专注计时模块：`focusRepository` → `focusUseCases: FocusUseCases`
+- 首页三日瀑布流聚合：`queryHomeAgenda: QueryHomeAgendaUseCase`（协调任务、固定事件与个人时段仓储及共享修订信号）
 
-页面与 ViewModel 统一注入 `graph.taskUseCases`、`graph.fixedEventUseCases`、`graph.workSessionUseCases` 与 `graph.focusUseCases`。任一模块在写事务成功提交后递增共享 `localRevision`，下游观察流（如 `queryCalendar.observe`、`queryTasks.observe`、`queryByTask.observe`、`getDetail.observe`）即可自动重算最新快照。
+页面与 ViewModel 统一注入 `graph.taskUseCases`、`graph.fixedEventUseCases`、`graph.workSessionUseCases`、`graph.focusUseCases` 与 `graph.queryHomeAgenda`。任一模块在写事务成功提交后递增共享 `localRevision`，下游观察流（如 `queryCalendar.observe`、`queryHomeAgenda.observeFeed`、`queryTasks.observe`、`queryByTask.observe`、`getDetail.observe`）即可自动重算最新快照。
 
 `AndroidAppContainer` 与 `DesktopAppContainer` 分别打开本端 Room 数据库，创建 `LocalDataSources` 并直接构造 `AppGraph(localDataSources)`（自动注入 `tasks`、`fixedEvents`、`workspaces`、`workSessions`、`focus` 与 `transaction`）；宿主清理时关闭数据库。没有默认内存实现或模拟失败开关；主构造保留可选数据源参数以便单模块测试兼容，未注入对应数据源时调用其读写会立即抛出明确错误。远程同步尚未实现。
 
